@@ -4,9 +4,35 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <wingdi.h>
 #include <time.h>
+#ifdef _WIN32
+#include <Windows.h>
+#define CConsole true
 
+void CreateConsoleWindow() {
+    AllocConsole();  // Create a console window
+    FILE* fileStream;
+    freopen_s(&fileStream, "CONOUT$", "w", stdout);  // Redirect stdout to the console
+    freopen_s(&fileStream, "CONOUT$", "w", stderr);  // Redirect stderr to the console
+}
+#endif
+#ifndef CConsole
+#define CConsole false
+void CreateConsoleWindow() return;
+#endif
+
+typedef struct Number {
+    uint8_t* Value;
+    uint32_t length;
+};
+
+Number Init_Number(int base_length) {
+    Number returned = { (uint8_t*)calloc(base_length,1), base_length };
+    if (returned.Value == NULL) {
+        exit(90);
+    }
+    return returned;
+}
 
 uint64_t uclen(unsigned char* input_) {
     uint64_t returned = 0;
@@ -20,7 +46,7 @@ uint64_t uclen(unsigned char* input_) {
 
 //Partie 1 : faire la multiplication simple
 //Il faudra lire les bits directement (sinon la v rification du nombre de 1 sera compliqu e car elle devra se faire   la m thode "classique")
-uint8_t* conv(char* _Input, int* result_lenght) {
+Number conv(char* _Input) {
     unsigned char* final_variable = (unsigned char*)_Input; //convertion de _Input (variable d'entrée) en un truc plus utilisable
     int number_of_zeros = 0; //ça ça va compter le nombres de 0 depuis la gauche de _Input (ex : "001234", là ça sera 2)
     
@@ -31,7 +57,8 @@ uint8_t* conv(char* _Input, int* result_lenght) {
     bool count_z = true;
     for (int i = 0; i < a; i++) { 
         if ((48 > final_variable[i] || final_variable[i] > 57)) {
-            return (uint8_t*)calloc(1,1); //ce n'est pas un chiffre on retourne un uint8_t* vide
+            Number returned = { NULL, 0 };
+            return returned; //ce n'est pas un chiffre on retourne un Number vide
         }
         if (count_z && final_variable[i] == 48) {
             number_of_zeros += 1; // ici on va pré-compter le nombre de 0 depuis la gauche (car si quelqu'un mets "001234", ça va pas marcher)
@@ -56,8 +83,8 @@ uint8_t* conv(char* _Input, int* result_lenght) {
     else length = length / 8;
 
     
-    uint8_t* returned_int = (uint8_t*)calloc(length, sizeof(uint8_t)); //on fera une liste chaînée d'octets (0-255) (LITTLE ENDIAN)
-    if (returned_int == NULL) {
+    Number returned_int = { (uint8_t*)calloc(length, sizeof(uint8_t)), length }; //on fera une liste chaînée d'octets (0-255) (LITTLE ENDIAN)
+    if (returned_int.Value == NULL) {
         exit(45); //code d'éxit différends (pour savoir quelle alloc a foiré)
     }
     uint8_t current_number = 0; //stocke la prochaine valeur à ajouter à returned_int
@@ -73,7 +100,7 @@ uint8_t* conv(char* _Input, int* result_lenght) {
         }
         nombre_operation += 1;
         if (nombre_operation == 8) { //si c'est 8, on a fini l'octet, on passe donc au suivant
-            returned_int[length-pointer] = current_number;
+            returned_int.Value[returned_int.length-pointer] = current_number;
             current_number = 0;
             nombre_operation = 0;
             pointer++;
@@ -92,121 +119,111 @@ uint8_t* conv(char* _Input, int* result_lenght) {
             } 
         }
     }
-    returned_int[length-pointer] = current_number; //quand on sort de la boucle, il faut quand même changer le dernier returned_int
+    returned_int.Value[returned_int.length-pointer] = current_number; //quand on sort de la boucle, il faut quand même changer le dernier returned_int
     
 
     //TEST : Faire un realloc depuis un pointer modifié pour enlever les 0 inutiles
     int64_t test = 0;
-    for (int i = 0; returned_int[i] == 0; i++) {
+    for (int i = 0; returned_int.Value[i] == 0; i++) {
         test++;
     }
     if (test != 0) {
-        length = length - test;
-        for (int i = 0; i < length; i++) {
-            returned_int[i] = returned_int[i + test];
+        returned_int.length = returned_int.length - test;
+        for (int i = 0; i < returned_int.length; i++) {
+            returned_int.Value[i] = returned_int.Value[i + test];
         }
-        returned_int = (uint8_t*)realloc(returned_int, length); //il y aura assez de place, puisque la taille qu'il prend est plus petite
+        returned_int.Value = (uint8_t*)realloc(returned_int.Value, returned_int.length); //il y aura assez de place, puisque la taille qu'il prend est plus petite
     }
 
-    (*result_lenght) = length; //on change la longeur (donnée en entrée) car il faut la tracker (sizeof marche pas et si on cherche un 0 il peut y en a plein)
     return returned_int;
 }
 
 /* ----------------------------------------------- */
 
 //fonction addition : c'est simple, il faut juste ajouter chaque uint8 dans un uint16 , prendre les 8 premiers bits et les mettres dans le uint8 du résultat puis mettre la retenue dans le premier bit (pour le prochain calcul) ; règle première : ne pas changer les variables d'entrée
-uint8_t* addition_uint(uint8_t* _Arg1, int _Size1, uint8_t* _Arg2, int _Size2, int* _RSize) {
+Number addition_uint(Number _Arg1, Number _Arg2) {
     //_Size1 -> len(_Arg1) ; _Size2 -> len(_Arg2) des _Size inexactes peuvent créer des erreurs
     //_RSize aura pour valeur à la fin la taille de resultat
-    bool arg1_bigger = (_Size1 >= _Size2);
-    int _min_ = min(_Size1, _Size2);
-    int _max_ = max(_Size1, _Size2);
+    bool arg1_bigger = (_Arg1.length >= _Arg2.length);
+    int _min_ = min(_Arg1.length, _Arg2.length);
+    int _max_ = max(_Arg1.length, _Arg2.length);
     int length = _max_ + 1;
-    uint8_t* resultat = (uint8_t*)calloc(length, sizeof(uint8_t)); //on prend pour taille ça car c'est comme ça
+    Number resultat = { (uint8_t*)calloc(length, sizeof(uint8_t)), length }; //on prend pour taille ça car c'est comme ça
     uint16_t nombre_pour_calcul = 0;
     for (int i = 1; i <= _min_ ; i++) { //on va jusqu'a min car sinon un uint8* sera vide
-        nombre_pour_calcul += _Arg1[_Size1-i] + _Arg2[_Size2-i];
-        resultat[length-i] = nombre_pour_calcul & 255; //prends les 8 premiers bits
+        nombre_pour_calcul += _Arg1.Value[_Arg1.length - i] + _Arg2.Value[_Arg2.length - i];
+        resultat.Value[resultat.length-i] = nombre_pour_calcul & 255; //prends les 8 premiers bits
         nombre_pour_calcul = nombre_pour_calcul >> 8; //on conserve la retenue
     }
     if (arg1_bigger) {
         for (int i = _min_+1; i <= _max_; i++) {
-            nombre_pour_calcul += _Arg1[_Size1-i];
-            resultat[length-i] = nombre_pour_calcul & 255;
+            nombre_pour_calcul += _Arg1.Value[_Arg1.length-i];
+            resultat.Value[resultat.length-i] = nombre_pour_calcul & 255;
             nombre_pour_calcul = nombre_pour_calcul >> 8;
         }
-        resultat[0] = nombre_pour_calcul;
+        resultat.Value[0] = nombre_pour_calcul;
     }
     else {
         for (int i = _min_+1; i <= _max_; i++) {
-            nombre_pour_calcul += _Arg2[_Size2-i];
-            resultat[length-i] = nombre_pour_calcul & 255;
+            nombre_pour_calcul += _Arg2.Value[_Arg2.length-i];
+            resultat.Value[resultat.length-i] = nombre_pour_calcul & 255;
             nombre_pour_calcul = nombre_pour_calcul >> 8; 
         }
-        resultat[0] = nombre_pour_calcul;
+        resultat.Value[0] = nombre_pour_calcul;
     }
     
     //recheck length (pour éviter d'utiliser de la mémoire pour rien)
     uint64_t retest = 0;
-    for (int i = 0; resultat[i] == 0; i++) {
+    for (int i = 0; resultat.Value[i] == 0; i++) {
         retest++;
     }
     if (retest != 0) {
-        length -= retest;
-        for (int i = 0; i < length ; i++) {
-            resultat[i] = resultat[i+retest];
+        resultat.length -= retest;
+        for (int i = 0; i < resultat.length ; i++) {
+            resultat.Value[i] = resultat.Value[i+retest];
         }
+        resultat.Value = (uint8_t*)realloc(resultat.Value, resultat.length);
     }
-    //(oui évidemment ça sert à rien sans realloc)
-    resultat = (uint8_t*) realloc(resultat, length);
-    if (_RSize != NULL) {
-        (*_RSize) = length;
-    }
-
     return resultat;
 }
 
 /* ----------------------------------------------- */
 
-char* convert_to_str(uint8_t* from_, int size) {
-    char* returned = (char*)(calloc(size*2+2,sizeof(char)));
+char* convert_to_str(Number from_) {
+    char* returned = (char*)(calloc(from_.length*2+2,sizeof(char)));
     if (returned == NULL) {
         exit(47);
     }
     returned[0] = '0'; //le "0x" au début n'est pas obligatoire, mais je l'aime bien là où il est
     returned[1] = 'x';
-    int a = size-1;
+    int a = from_.length-1;
     char constants[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}; //ça évite d'avoir 16 if/else
     for (int i = 0; i <= a; i++) { //on commence du début car little endian
-        uint8_t visualisation = (uint8_t) from_[i];
+        uint8_t visualisation = (uint8_t) from_.Value[i];
         returned[i*2+2] = constants[visualisation/16]; //prends les 4 bits du haut (1010 0101 -> 1010)
         returned[i*2+3] = constants[visualisation & 15]; //prends les 4 bits du bas (1010 0101 -> 0101) (grâce au & et parce que 15 c'est 0000 1111)
     }
-    returned[size * 2 + 2] = '\0';
+    returned[from_.length * 2 + 2] = '\0';
     
     return returned;
 }
 
 int main()
 {
-    char a[1001] = "112"; //input, peut mettre n'importe quel nombre base 10
-    char b[1001] = "41456492"; //pareil
-    
+    if (CConsole) CreateConsoleWindow();
+    char a[16001] = "121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732378927932891121732";//input, put any number you want (base 10)
+    char b[16001] = "182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917182172817817291912879172919729279172172991718217281781729191287917291972927917217299171821728178172919128791729197292791721729917";
     timespec my_time = {0, 0};
     timespec new_time = {0, 0};
     if (timespec_get(&my_time, TIME_UTC) == NULL) {
         exit(61);
     }
-
-    int a_len = 0;
-    int b_len = 0;
-    uint8_t* a_conv = conv(a,&a_len);
-    uint8_t* b_conv = conv(b,&b_len);
-    char* a_str = convert_to_str(a_conv, a_len);
-    char* b_str = convert_to_str(b_conv,b_len);
-    int c_len = 0;
-    uint8_t* c_conv = addition_uint(a_conv,a_len,b_conv,b_len,&c_len);
-    char* c_str = convert_to_str(c_conv,c_len);
+    Number a_conv = conv(a);
+    Number b_conv = conv(b);
+    char* a_str = convert_to_str(a_conv);
+    char* b_str = convert_to_str(b_conv);
+    Number c_conv = addition_uint(a_conv,b_conv);
+    char* c_str = convert_to_str(c_conv);
 
     if (timespec_get(&new_time, TIME_UTC) == NULL) {
         exit(60);
