@@ -259,7 +259,7 @@ Number multiplication_Number(Number Arg1, Number Arg2) { //d'abord on va faire l
     for (int i = 0; i < Arg1.length; i++) {
         temp_ = Arg1.Value[i];
         for (int j = 0; j <= 7; j++) {
-            if ((temp_ >> j)&1 == 1) Arg1_number_of_one++;
+            if ((temp_ >> j)&1 == 1) Arg1_number_of_one++; //vérifie si c'est un 1 ou 0
         }
     }
     for (int i = 0; i < Arg2.length; i++) {
@@ -273,9 +273,9 @@ Number multiplication_Number(Number Arg1, Number Arg2) { //d'abord on va faire l
             temp_ = Arg1.Value[i];
             for (int j = 0; j <= 7; j++) {
                 if ((temp_ >> j)&1 == 1) {
-                    Number temporary = decaler_bit(Arg2,(Arg1.length-i-1)*8+j);
+                    Number temporary = decaler_bit(Arg2,(Arg1.length-i-1)*8+j); //on décale le nombre de bit
                     memcpy(Inter_Operation.Value+Inter_Operation.length-temporary.length,temporary.Value,temporary.length);
-                    Result = _addition_uint(Result,Inter_Operation);
+                    Result = _addition_uint(Result,Inter_Operation); //puis on fait une addition sur Résultat
                 }
             }
         }
@@ -285,9 +285,9 @@ Number multiplication_Number(Number Arg1, Number Arg2) { //d'abord on va faire l
             temp_ = Arg2.Value[i];
             for (int j = 0; j <= 7; j++) {
                 if ((temp_ >> j)&1 == 1) {
-                    Number temporary = decaler_bit(Arg1,(Arg2.length-i-1)*8+j);
+                    Number temporary = decaler_bit(Arg1,(Arg2.length-i-1)*8+j); //on décale le nombre de bit
                     memcpy(Inter_Operation.Value+Inter_Operation.length-temporary.length,temporary.Value,temporary.length);
-                    Result = _addition_uint(Result,Inter_Operation);
+                    Result = _addition_uint(Result,Inter_Operation); //puis on fait une addition sur Résultat
                 }
             }
         }
@@ -319,6 +319,50 @@ char* convert_to_str(Number from_) {
     return returned;
 }
 
+/* ----------------------------------------------- */
+char* convert_to_base10(Number from_) {
+    Number copy = Init_Number(from_.length);
+    memcpy(copy.Value, from_.Value, from_.length);
+    uint32_t number_of_zeros = 0;
+    for (int i = 0; copy.Value[i] == 0; i++) {
+        number_of_zeros++;
+    }
+    uint32_t char_len = ((from_.length-number_of_zeros) / 7 + 1) * 18;
+    char* char_returned = (char*)calloc(char_len, 1);
+    memset(char_returned, '0', char_len);
+    uint16_t truc = 0;
+    uint8_t reste = 0;
+    uint32_t pointer = 0;
+    char contant[10] = { '0','1','2','3','4','5','6','7','8','9'};
+    
+    
+    while (number_of_zeros != copy.length) {
+        for (int i = number_of_zeros; i < copy.length; i++) {
+            truc += copy.Value[i];
+            copy.Value[i] = truc / 10;
+            if (i == number_of_zeros && copy.Value[i] == 0) {
+                number_of_zeros++;
+            }
+            truc = truc%10;
+            truc = truc << 8;
+        }
+        char_returned[char_len - pointer - 1] = contant[truc >> 8]; //quand on arrive à la fin, on a le reste qui est entre 0 et 10
+        pointer++;
+        truc = 0;
+    }
+    free(copy.Value);
+    //on va compter le nombre de '0' inutile dans char_returned (ceux à gauche)
+    number_of_zeros = 0;
+    for (int i = 0; char_returned[i] == '0'; i++) {
+        number_of_zeros++;
+    }
+    memcpy(char_returned, char_returned + number_of_zeros, char_len - number_of_zeros);
+    realloc(char_returned, char_len - number_of_zeros);
+    char_returned[char_len - number_of_zeros] = '\0';
+    return char_returned;
+}
+
+/* ----------------------------------------------- */
 int main()
 {
     if (CConsole) CreateConsoleWindow();
@@ -332,12 +376,12 @@ int main()
     }
     Number a_conv = conv(a);
     Number b_conv = conv(b);
-    char* a_str = convert_to_str(a_conv);
-    char* b_str = convert_to_str(b_conv);
+    char* a_str = convert_to_base10(a_conv);
+    char* b_str = convert_to_base10(b_conv);
     Number c_conv = addition_uint(a_conv, b_conv);
-    char* c_str = convert_to_str(c_conv);
+    char* c_str = convert_to_base10(c_conv);
     Number d_conv = multiplication_Number(a_conv, b_conv);
-    char* d_str = convert_to_str(d_conv);
+    char* d_str = convert_to_base10(d_conv);
 
     if (timespec_get(&new_time, TIME_UTC) == NULL) {
         exit(60);
@@ -346,9 +390,9 @@ int main()
     //calcul du temps que ça à pris (simple soustraction)
     long final_time = new_time.tv_sec-my_time.tv_sec ;
     long final_time_2 = new_time.tv_nsec-my_time.tv_nsec;
-    printf("nombre a : %s\n", a_str);
+    printf("nombre a base 10 : %s\n", a_str);
     printf("\n");
-    printf("nombre b : %s\n",b_str);
+    printf("nombre b base 10 : %s\n", b_str);
     printf("\n");
     printf("addition a+b : %s\n",c_str);
     printf("\n");
