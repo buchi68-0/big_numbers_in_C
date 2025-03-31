@@ -5,7 +5,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+
 #ifdef _WIN32
+#pragma warning(disable : 4996)
 #include <Windows.h>
 #define CConsole true
 
@@ -24,7 +26,14 @@ void CreateConsoleWindow() return;
 typedef struct Number {
     uint8_t* Value;
     uint64_t length;
+    bool flag;
 };
+
+void FreeNumber(Number _Tofree) {
+    free(_Tofree.Value);
+    _Tofree.Value = NULL;
+    _Tofree.length = 0;
+}
 //faire un signed number : il faut juste ajouter un flag qui vaut 1 ou 0 suivant s'il est négatif ou pas
 /*l'addition/soustraction reste simple :
 positif + positif : rien ne change
@@ -45,13 +54,17 @@ void PanickError(char* msg) {
 }
 
 Number Create_Number(uint64_t base_length) {
-    Number returned = { (uint8_t*)calloc(base_length,1), base_length };
-    if (returned.Value == NULL) {
-        exit(90);
+    Number r = { (uint8_t*)calloc(base_length,1), base_length, false };
+    if (r.Value == NULL) {
+        PanickError("allocation of r in function Create_Number failed");
+        printf("Ending programm...\n");
+        exit(0x10001); 
     }
-    return returned;
+    return r;
 }
 
+
+// ----------- UNUSED -----------------
 bool Equal(Number Var1, Number Var2) {
     //complexité O(n)
     int64_t difference = Var1.length-Var2.length;
@@ -72,7 +85,8 @@ bool Equal(Number Var1, Number Var2) {
 }
 
 Number Max(Number Var1, Number Var2) {
-    //Complexité O(n) ; Plus optimisé si il n'y a pas de 0 inutiles ; Pire cas : Var1 = Var2
+    //Doesn't care about the flag
+    //Is actually used now
     if (Var1.length > Var2.length) {
         uint64_t difference = Var1.length-Var2.length;
         for (uint64_t i = 0; i < difference; i++) {
@@ -105,168 +119,328 @@ uint64_t uclen(unsigned char* input_) {
         returned += 1;
     }
 }
-
-//Partie 1 : faire la multiplication simple
-//Il faudra lire les bits directement (sinon la v rification du nombre de 1 sera compliqu e car elle devra se faire   la m thode "classique")
-Number parsing(char* _Input) {
-    //_Input doit être une chaîne de charactères représentant des chiffres
-    //parsing est moins efficace s'il y a des '0' inutiles (à gauche de la châine)
+// ----------- END UNUSED -------------
 
 
-    unsigned char* final_variable = (unsigned char*)_Input; //convertion de _Input (variable d'entrée) en un truc plus utilisable (pour ne pas détruire l'Input)
-    uint64_t number_of_zeros = 0; //ça ça va compter le nombres de 0 depuis la gauche de _Input (ex : "001234", là ça sera 2)
-    
-    // verification de final_variable (si il y a autre chose que des chiffres)
-
-    uint64_t a = uclen(final_variable); //évite de devoir faire des appels succesifs de uclen
-
-    for (uint64_t i = 0; i < a; i++) { 
-        if ((48 > final_variable[i] || final_variable[i] > 57)) {
-            PanickError("Input hasn't only digits");
-            Number returned = { NULL, 0 };
-            return returned; //ce n'est pas un chiffre on retourne un Number vide (0)  -> print l'erreur pour avertir
+bool format_str_for_parsing(char* _Input,uint64_t Input_length) {
+    //takes an Input (char*) supposed to be a string of digits (i.e : "1234")
+    //formats it so it can be used propelly by parse_base10_str (-> {1,2,3,4})
+    //returns false if Input not a string of digits ; true else
+    for (uint64_t i = 0; i < Input_length; i++) { 
+        if ((48 > _Input[i] || _Input[i] > 57)) {
+            return false; //ce n'est pas un chiffre; on retourne false
         }
+        _Input[i] -= '0'; //sinon on coverti pour avoir {1,2,3,4} par exemple au lieu de {49,50,51,52}
+    }
+    return true;
+}
 
-        final_variable[i] -= '0'; //on sait que c'est un chiffre, on va donc enlever 48 au code. Même si c'est un zero, c'est pas grave : on a déjà a pour longeure (réele) de final_variable
-        //cette manipulation permet de ne pas rajouter 24 à final_variable[i] quand on a divisé par 2
+void divide_char_by2(char* _Input, uint64_t Input_length, uint64_t* Number_of_zero) {
+    //"divide" _Input by 2 ; used for parsing
+    //won't create errors if _Input hasn't 'format_str_for_parsing' format
+    //WILL create errors if _Input[Input_length-1] is even (exception : Input_length != strlen(_Input))
+    //add to Number_of_zero if new useless '0' detected
+
+    for (uint64_t i = Input_length-1; i >= (*Number_of_zero) && i < Input_length; i--) { 
+        // i >= (*Number_of_zero) && i < Input_length :
+        //is a security if (*Number_of_zero) is 0 (then; it will always be >= 0 because it's unsigned)
+        if (_Input[i] % 2 == 1) { //if even
+            if (i == Input_length - 1) {
+                printf("burh"); //trap to debugger
+            }
+            _Input[i] -= 1; //remove 1
+            _Input[i + 1] += 5; //and add 5 to next digit (creates error if i is strlen(_Input-1)
+        }
+        _Input[i] = _Input[i] / 2; //dividing by 2
+        if (i == (*Number_of_zero) && _Input[i] == 0) { //new zero detected (at the left)
+            for (uint64_t j = i; j < Input_length && _Input[j] == 0; j++) (*Number_of_zero)++; 
+            //add 1 to Number_of_zero (and rechecks if others zeros on the right)
+            //it's O(1) after first call else it's O(k) with k the number of useless '0'
+        }
+    }
+}
+
+Number parse_base10_str(char* _Input) {
+    //_Input doit être une chaîne de charactères représentant des chiffres
+    //parse_base10_str est moins efficace s'il y a des '0' inutiles (à gauche de la châine)
+    uint64_t length_ = strlen(_Input);
+    char* final_variable = (char*)calloc(length_+1,1);
+    if (final_variable == NULL) {
+        PanickError("Allocation of final_variable in function parse_base10_str failed");
+        printf("Ending programm...\n");
+        exit(0x10001); //failed allocation
+    }
+
+    memcpy(final_variable,_Input,length_); //strcpy seems to have issues
+    
+    uint64_t number_of_zeros = 0; //counts zeros from the left
+    
+    // final_variable verification
+    bool verification = format_str_for_parsing(final_variable,length_);
+    if (!verification) {
+        PanickError("string given to parse_base10_str hasn't right format");
+        return {NULL,0}; //returns empty Number
     }
     
-    uint64_t length = strlen(_Input)-number_of_zeros; //longeur de returned_int (calculée en avance) (on fait attention au number_of_zero) pour ne pas utiliser trop d'espace
+    
+    uint64_t length = length_-number_of_zeros; //length of r
     
     //on a : 256**x = 10**y ; on a y (length); on cherche x : on a xlog(256) = ylog(10) <==> x = y/log(256) (log(10) = 1; on divise par log(256) de chaque côté)
-    length = (length*100)/241 + 1; //on va tester s'il y a des erreures
+    length = (length*100)/241 + 1; 
 
-    Number returned_int = { (uint8_t*)calloc(length, sizeof(uint8_t)), length }; //on fera une liste chaînée d'octets (0-255) (LITTLE ENDIAN)
-    if (returned_int.Value == NULL) {
-        exit(45); //code d'éxit différends (pour savoir quelle alloc a foiré)
+    Number r = Create_Number(length); //creating Number
+    if (r.Value == NULL) { //checking if allocation worked
+        PanickError("Allocation of r in function parse_base10_str failed");
+        printf("Ending programm...\n");
+        exit(0x10001); 
     }
-    uint8_t current_number = 0; //stocke la prochaine valeur à ajouter à returned_int
+    uint8_t current_number = 0; //next value to add to r
 
-    uint64_t pointer = 1; //compte la place que current_number devra modifier
+    uint64_t pointer = 1; //which value of r the programm will modify (used as r.Value[r.length-pointer])
 
-    int nombre_operation = 0; //tracke la position du bit qu'on va ajouter à current_number 
+    int nombre_operation = 0; //track the bit position to modify current_number
 
-    while (final_variable[0] != 10) { //la boucle finis tout le temps (on set final_variable[0] à 10 si nombre_de_zeros = a et il ne peut pas avoir deux zeros qui spawn en même temps de toute façon)
-        if (final_variable[a - 1] % 2 == 1) {
-            final_variable[a - 1] -= 1; //si le premier chiffre est impaire, on le soustrait (pour en avoir un pair) et il nous servira a faire current_number
-            current_number += (1 << nombre_operation); //on utilise << pour bien décaler le bit
+    while (final_variable[0] != 10) { //The loop always end (verified)
+        if (final_variable[length_ - 1] % 2 == 1) { //handle the last digit (if even)
+            final_variable[length_ - 1] -= 1; //if first digit even, remove it and add to current_number
+            current_number |= (1 << nombre_operation); //use bit shifting
+            //using 'or' operator because it might be faster than an add
         }
-        nombre_operation += 1;
-        if (nombre_operation == 8) { //si c'est 8, on a fini l'octet, on passe donc au suivant
-            returned_int.Value[returned_int.length-pointer] = current_number;
+        nombre_operation += 1; //each loop iteration, the bit we might change changes
+        if (nombre_operation == 8) { //if it's 8, we finished the byte, coming back to zero
+            r.Value[r.length-pointer] = current_number; //add to r
             current_number = 0;
             nombre_operation = 0;
-            pointer++;
+            pointer++; //change pointer
         }
-        for (uint64_t i = a-1; i >= number_of_zeros && i < a; i--) { //on peut du coup aller jusqu'a number_of_zero exclus qui donc enlève des opérations
-            if (final_variable[i] % 2 == 1) { //si chiffre impaire
-                final_variable[i] -= 1; //on enlève 1
-                final_variable[i + 1] += 5; //et on rajoute 5 au chiffre après (ex : 52/2 -> (i = 1) 2 est pair, donc on divise par 2 (-> 51) ; (i = 0) 5 est impaire (et 50/2 = 25) on enlève donc 1 (ça fait 4) puis on divise par 2 (ça fait 2) puis on ajoute 5 au chiffre d'avant (-> 26)
-            }
-            final_variable[i] = final_variable[i] / 2; // on divise après par 2 en sachant que le chiffre visé est pair -> on ajoute plus 24 ici
-            if (i == number_of_zeros && final_variable[i] == 0) { //si le chiffre le plus à gauche qui n'était pas un zero devient un zero, on ajoute 1 à number_of_zeros
-                number_of_zeros += 1;
-                if (number_of_zeros == a) { //si il n'y a plus que des 0, on change final_variable[0] à 10 qui arrêteras donc final_variable (il faut juste pas mettre des nombres entre 48 et 57 car ce sont des codes de chiffres)
-                    final_variable[0] = 10;
-                }
-            } 
-        }
+        divide_char_by2(final_variable,length_,&number_of_zeros);
+        if (number_of_zeros == length_) final_variable[0] = 10;
     }
-    returned_int.Value[returned_int.length-pointer] = current_number; //quand on sort de la boucle, il faut quand même changer le dernier returned_int
+    r.Value[r.length-pointer] = current_number; 
+    //when loop is finished, current_number can still have a value, we have to add it still
     
 
-    //TEST : Faire un realloc depuis un pointer modifié pour enlever les 0 inutiles
-    int64_t test = 0;
-    for (uint64_t i = 0; returned_int.Value[i] == 0; i++) {
+    //removes useless 0s at the left of r
+    int64_t test = 0; //with the optimized size calculation, this thing is about O(3) maximum
+    for (uint64_t i = 0; r.Value[i] == 0; i++) {
         test++;
     }
-    if (test != 0) {
-        returned_int.length = returned_int.length - test;
-        for (uint64_t i = 0; i < returned_int.length; i++) {
-            returned_int.Value[i] = returned_int.Value[i + test];
+    if (test != 0) { //if more than 1 useless 0
+        r.length = r.length - test;
+        for (uint64_t i = 0; i < r.length; i++) {
+            r.Value[i] = r.Value[i + test]; //O(n) ; we move everything to the left
         }
-        returned_int.Value = (uint8_t*)realloc(returned_int.Value, returned_int.length); //il y aura assez de place, puisque la taille qu'il prend est plus petite
+        r.Value = (uint8_t*)realloc(r.Value, r.length); //we realloc to a Block of right size
+        if (r.Value == NULL) { //checking if reallocation worked
+            PanickError("Reallocation of r in function parse_base10_str failed");
+            printf("Ending programm...\n");
+            exit(0x10001); 
+        }
     }
 
-    return returned_int;
+    return r;
 }
 
 /* ----------------------------------------------- */
 
-//fonction addition : c'est simple, il faut juste ajouter chaque uint8 dans un uint16 , prendre les 8 premiers bits et les mettres dans le uint8 du résultat puis mettre la retenue dans le premier bit (pour le prochain calcul) ; règle première : ne pas changer les variables d'entrée
-Number addition_uint(Number _Arg1, Number _Arg2) {
-    bool arg1_bigger = (_Arg1.length >= _Arg2.length);
-    uint64_t _min_ = min(_Arg1.length, _Arg2.length);
-    uint64_t _max_ = max(_Arg1.length, _Arg2.length);
-    uint64_t length = _max_ + 1;
-    Number resultat = { (uint8_t*)calloc(length, sizeof(uint8_t)), length }; //on prend pour taille ça car c'est comme ça
-    uint16_t nombre_pour_calcul = 0;
-    for (uint64_t i = 1; i <= _min_ ; i++) { //on va jusqu'a min car sinon un uint8* sera vide
-        nombre_pour_calcul += _Arg1.Value[_Arg1.length - i] + _Arg2.Value[_Arg2.length - i];
-        resultat.Value[resultat.length-i] = nombre_pour_calcul & 255; //prends les 8 premiers bits
-        nombre_pour_calcul = nombre_pour_calcul >> 8; //on conserve la retenue
-    }
-    if (arg1_bigger) {
-        for (uint64_t i = _min_+1; i <= _max_; i++) {
-            nombre_pour_calcul += _Arg1.Value[_Arg1.length-i];
-            resultat.Value[resultat.length-i] = nombre_pour_calcul & 255;
-            nombre_pour_calcul = nombre_pour_calcul >> 8;
+//BASIC OPERATIONS
+/*
+* The only callable functions are subtraction_Numbers and addiction_Numbers
+* Others could make false results or even maybe errors
+*/
+Number _Subtraction_No_Flag(Number _A1, Number _A2) {
+    //Child function, DO NOT CALL
+
+    Number Result = Create_Number(_A1.length); //max size : _A1's size
+    uint8_t retenue = 0;
+    int16_t intermidiate = 0;
+    for (int i = 0; i < _A2.length; i++) {
+        intermidiate = _A1.Value[_A1.length - i - 1] - _A2.Value[_A2.length - i - 1] - retenue;
+        if (intermidiate < 0) {
+            retenue = 1;
+            intermidiate += 256;
         }
-        resultat.Value[0] = nombre_pour_calcul;
+        Result.Value[Result.length - i - 1] = intermidiate;
     }
-    else {
-        for (uint64_t i = _min_+1; i <= _max_; i++) {
-            nombre_pour_calcul += _Arg2.Value[_Arg2.length-i];
-            resultat.Value[resultat.length-i] = nombre_pour_calcul & 255;
-            nombre_pour_calcul = nombre_pour_calcul >> 8; 
+    for (int i = _A2.length; i < _A1.length; i++) {
+        intermidiate = _A1.Value[_A1.length - i - 1] - retenue;
+        if (intermidiate < 0) {
+            retenue = 1;
+            intermidiate += 256;
         }
-        resultat.Value[0] = nombre_pour_calcul;
+        Result.Value[Result.length - i - 1] = intermidiate;
     }
-    
-    //recheck length (pour éviter d'utiliser de la mémoire pour rien)
+    return Result;
+}
+Number _Addition_No_Flag(Number _A1, Number _A2) {
+    //_A1.length HAS to be SUPERIOR or equal to _A2.length
+    //Child function DO NOT CALL
+
+    uint64_t length = _A1.length + 1; //length of result
+    Number result = Create_Number(length);
+    uint16_t _number = 0; //it's the intermediate for the addition
+    //this is uint16 because if there's 255+255 it's bigger than 255 so we need one more bit
+    //(but uint9_t doesn't exist)
+    for (uint64_t i = 0; i < _A2.length; i++) { //we add normally until we reach the end of one Number
+        _number += _A1.Value[_A1.length - i - 1] + _A2.Value[_A2.length - i - 1];
+        //we add because of the potential retenue
+        result.Value[result.length - i - 1] = _number & 255; //takes first 8 bits
+        _number = _number >> 8; //shifting to keep the retenue
+        //(even though yeah the retenue can only be 1 or 0)
+    }
+    for (uint64_t i = _A2.length; i < _A1.length; i++) {
+        _number += _A1.Value[_A1.length - i - 1];
+        result.Value[result.length - i - 1] = _number & 255;
+        _number = _number >> 8;
+    }
+    result.Value[0] = _number;
+
+
+    //check for useless 0s
     uint64_t retest = 0;
-    for (uint64_t i = 0; resultat.Value[i] == 0; i++) {
+    for (uint64_t i = 0; result.Value[i] == 0; i++) {
         retest++;
     }
     if (retest != 0) {
-        resultat.length -= retest;
-        for (uint64_t i = 0; i < resultat.length ; i++) {
-            resultat.Value[i] = resultat.Value[i+retest];
+        result.length -= retest;
+        for (uint64_t i = 0; i < result.length; i++) {
+            result.Value[i] = result.Value[i + retest];
         }
-        resultat.Value = (uint8_t*)realloc(resultat.Value, resultat.length);
+        result.Value = (uint8_t*)realloc(result.Value, result.length);
+        if (result.Value == NULL) { //checking if reallocation worked
+            PanickError("Reallocation of result in function addition_Numbers failed");
+            printf("Ending programm...\n");
+            exit(0x10001);
+        }
     }
-    return resultat;
+    return result;
+}
+
+
+
+Number subtraction_Numbers(Number _Base, Number _Subtraction) {
+    //Does _Base - _Subtraction
+    //This is the called function
+    if (!(_Base.flag || _Subtraction.flag)) { //positive - positive
+        Number max__ = Max(_Base,_Subtraction);
+        if (max__.Value == _Base.Value) return _Subtraction_No_Flag(_Base,_Subtraction);
+        else {
+            Number r = _Subtraction_No_Flag(_Subtraction,_Base);
+            r.flag = true; // a-b = -(b-a)
+            return r;
+        }
+    }
+    else if (_Base.flag && _Subtraction.flag) {//negative - negative
+        //negative - negative = negative + positive = -(positive - positive);
+        Number max__ = Max(_Base,_Subtraction);
+        if (max__.Value == _Base.Value) {
+            Number r = _Subtraction_No_Flag(_Base,_Subtraction);
+            r.flag = true;
+        } 
+        else {
+            return _Subtraction_No_Flag(_Subtraction,_Base);
+            //if _Subtraction > ; number will be positive anyway
+        }
+    }
+    else if (_Base.flag) { //negative - positive
+        // <==> -(positive + positve)
+        //that one's EZ
+        if (_Base.length > _Subtraction.length) {
+            Number r = _Addition_No_Flag(_Base,_Subtraction);
+            r.flag = true;
+            return r;
+        }
+        else {
+            Number r = _Addition_No_Flag(_Base,_Subtraction);
+            r.flag = true;
+            return r;
+        }
+    }
+    else { //positive - negative
+        // <==> positive + positive
+        //EZ as well
+        if (_Base.length > _Subtraction.length) {
+            return _Addition_No_Flag(_Base, _Subtraction);
+        }
+        else {
+            return _Addition_No_Flag(_Subtraction, _Base);
+        }
+
+    }
+
+}
+
+
+Number addition_Numbers(Number _Arg1, Number _Arg2) {
+    //This is the called function.
+    //It will then handle flags and sizes with other child functions
+    if (_Arg1.flag && _Arg2.flag) { //both negative
+        if (_Arg1.length > _Arg2.length) {
+            Number r = _Addition_No_Flag(_Arg1,_Arg2);
+            r.flag = true; //set to negative (negative + negative = -(positive + positive))
+            return r;
+        }
+        else {
+            Number r = _Addition_No_Flag(_Arg2,_Arg1);
+            r.flag = true; //set to negative (negative + negative = -(positive + positive))
+            return r;
+        }
+    }
+    else if (!(_Arg1.flag || _Arg2.flag)) { //both positive (basic addition)
+        if (_Arg1.length > _Arg2.length) {
+            Number r = _Addition_No_Flag(_Arg1,_Arg2);
+            return r;
+        }
+        else {
+            Number r = _Addition_No_Flag(_Arg2,_Arg1);
+            return r;
+        }
+    }
+    else if (_Arg1.flag) { //only cases left : only _Arg1 is negative and only _Arg2 is negative
+        //negative + positive = -(positive - positive)
+        //CAREFULL : the returned value can be negative, so the flag has to be a xor with current flag
+        _Arg1.flag = false; //temporary set the number to positive
+        Number r = subtraction_Numbers(_Arg1,_Arg2);
+        r.flag = r.flag ^ 1;
+        _Arg1.flag = true;
+        return r;
+    }
+    else {
+        //positive + negative = positive - positive
+        //though it's litterally just a subtraction
+        _Arg2.flag = false;
+        Number r = subtraction_Numbers(_Arg1,_Arg2);
+        _Arg2.flag = true;
+        return r;
+    }
 }
 
 /* ----------------------------------------------- */
 
-//On a besoin d'une addition optimisée de Deux Number de même taille dont l'addition ne depasse pas la taille (ça évite des opérations en plus)
-
-Number _addition_uint(Number _Arg1, Number _Arg2) { //version qui n'optimise pas la mémoire. --- L'addition ne peux pas dépasser la taille
-    //_Arg1.length doit être égal à _Arg2.length (ce qui est le cas si utilisé dans la fonction multiplication)
-    Number resultat = { (uint8_t*)calloc(_Arg1.length, sizeof(uint8_t)), _Arg1.length }; //on prend pour taille ça car c'est comme ça
-    uint16_t nombre_pour_calcul = 0;
-    for (uint64_t i = _Arg1.length - 1; i < _Arg1.length ; i--) { 
-        nombre_pour_calcul += _Arg1.Value[i] + _Arg2.Value[i];
-        resultat.Value[i] = nombre_pour_calcul & 255; //prends les 8 premiers bits
-        nombre_pour_calcul = nombre_pour_calcul >> 8; //on conserve la retenue, on enlève le reste
+Number _addition_uint(Number _Arg1, Number _Arg2) { 
+    //Doesn't optimize memory ; takes 2 same-length Number so I don't have to check the size difference as well
+    //Add _Arg2 into _Arg1
+    //Has to be used INTO Multiplication_Numbers because it DOESN'T handle different sizes
+    Number result = Create_Number(_Arg1.length); 
+    //Takes for size the same as the rest
+    //Why ? because _Arg1 and _Arg2 have for length the MAXIMUM of the multiplication of the 2 Numbers (in Multiplication_Numbers)
+    uint16_t _number = 0; //intermidiate
+    for (uint64_t i = _Arg1.length - 1; i < _Arg1.length; i--) {
+        _number += _Arg1.Value[i] + _Arg2.Value[i];
+        result.Value[i] = _number & 255; //takes 8 first bits
+        _number = _number >> 8; //keep the retenue
     }
-    return resultat;
+    return result;
 }
 
+Number bit_shift(Number _From, uint64_t number) {
 
-//Si on veut décaler de n bits, il faut : trouver de combien d'octet on décale (n/8) puis de combien de bits restant il faut décaler (n%8)
-//On peut prendre un uint16; faire le uint8 >> (n%8) , appliquer la valeur au uint8 (en faisant &255) puis faire uint16 << 8
-//puis prendre un deuxième uint16 ; faire uint8 >> (n%8), appliquer la valeur au uint8 (en faisant &255) puis ajouter le reste du premier uint16 puis faire le second uint16 << 8
-
-Number decaler_bit(Number _From, uint64_t nombre) {
-
-    uint64_t nb_octet = nombre / 8;
-    uint8_t nb_bit = nombre % 8;
+    uint64_t nb_octet = number / 8;
+    uint8_t nb_bit = number % 8;
     
-    uint64_t taille = nombre / 8 + _From.length;
-    if (nb_bit != 0) taille++;
-    Number returned = Create_Number(taille);
+    uint64_t length_ = number / 8 + _From.length;
+    if (nb_bit != 0) length_++;
+    Number returned = Create_Number(length_); //handles problems
     uint16_t temp[2] = { 0, 0 };
     if (nb_bit != 0) {
         for (uint64_t i = _From.length; i < _From.length+1; i--) {
@@ -275,73 +449,160 @@ Number decaler_bit(Number _From, uint64_t nombre) {
             returned.Value[i] = returned.Value[i]|temp[(i + 1) % 2];
             temp[i % 2] = temp[i % 2] >> 8;
         }
-        returned.Value[0] = temp[1]; //obligé que la boucle for se finnise à i = 1 donc on prend comme si i = 0 (donc c'est 0+1%2 c'est 1)
+        returned.Value[0] = temp[1]; //the loop will alwyas end at i = 1 so we just do as if i == 0
     }
     else {
-        memcpy(returned.Value, _From.Value, _From.length);
+        memcpy(returned.Value, _From.Value, _From.length); //if it's moving just bytes, then it's easy
     }
     return returned;
-
-    //Résultat : ça marche.
 }
 
-Number multiplication_Number(Number Arg1, Number Arg2) { //d'abord on va faire la version 'naïve' pour les nombres petit
-    //Donc, il faut : compter le nombre de 1 dans chaque ; et savoir où ils sont
-    //1. TEST : verifier si >> peut directement decaler TOUT le Number
-    Number Result = Create_Number(Arg1.length+Arg2.length);
-    if (Result.Value == NULL) {
-        exit(123);
+uint64_t Get_Number_of1s(Number _Arg) {
+    //so it's a basic for loop that check for each byte, each bit
+    //complexity : O(8n) with n the length of _Arg
+    //there'll be problems if the length is 2^61+ (then 8*length is an overflow)
+    uint64_t r = 0;
+    uint8_t _temp;
+    for (uint64_t i = 0; i < _Arg.length; i++) {
+        _temp = _Arg.Value[i];
+        for (uint64_t j = 0; j <= 7; j++) {
+            if (_temp&1 == 1) r++; //checks if 1 or 0
+            _temp = _temp >> 1; 
+            //got told >> n is n times >>1 so i guess it's better than doing n(n+1)/2 shifting
+        }
     }
-    Number Inter_Operation = Create_Number(Arg1.length+Arg2.length);
-    if (Inter_Operation.Value == NULL) {
-        exit(124);
-    }
-    //Number temporary = decaler_bit(Arg1, 7); //il faudra copier la mémoire dans Inter_Operation puis l'ajouter à résultat, pour chaque 1.
-    //idée pour savoir si c'est un 1 : on a un pointer qui compte le nombre de bits qu'on a vérifié. le nombre qu'on doit vérifier est donc Arg.Value[length-1-pointer/8] et pour voir le bit, il faut faire >> pointer%8 puis faire &1 (qui prend donc seulement le 1er bit)
-    //trouver le nombre de 1 dans le nombre : compléxité O(8n) (On pourrait faire des petites optimisation, comme prendre Arg.value[length-1-pointer/8] dans une variable temporaire qu'on change seulement quand on a besoin)
-    //memcpy(Result.Value, temporary.Value, temporary.length);
+    return r;
+}
 
-    uint64_t Arg1_number_of_one = 0;
-    uint64_t Arg2_number_of_one = 0;
-    
+// -- Now, let's do a function so multiplication_Numbers only use Number of ones and this function to get the result
+//(it makes it easy to implement karatsuba algorithm because i can then check if the number is long enough to cut it in half))
+Number naive_muliplication_system(Number _Multiplied, Number _Multiplier) {
+    //basically, multiplication will do the optimal way (take number_of_one, etc.) while this function just multiplies
+    //_Multiplied will be the one to be bit shifted according to _Multiplier's 1s positions
+    Number Result = Create_Number(_Multiplied.length + _Multiplier.length);//the Result ; maximum length is the addition of both
+    //no need to verify, it already handles that in Create_Number
+    Number Inter_Operation = Create_Number(Result.length); //intermidiate ; same length as Result
     uint8_t temp_;
-    for (uint64_t i = 0; i < Arg1.length; i++) {
-        temp_ = Arg1.Value[i];
+    for (uint64_t i = _Multiplier.length - 1; i < _Multiplier.length; i--) {
+        temp_ = _Multiplier.Value[i];
         for (uint64_t j = 0; j <= 7; j++) {
-            if ((temp_ >> j)&1 == 1) Arg1_number_of_one++; //vérifie si c'est un 1 ou 0
-        }
-    }
-    for (uint64_t i = 0; i < Arg2.length; i++) {
-        temp_ = Arg2.Value[i];
-        for (uint64_t j = 0; j <= 7; j++) {
-            if ((temp_ >> j)&1 == 1) Arg2_number_of_one++;
-        }
-    }
-    if (Arg2_number_of_one > Arg1_number_of_one) {
-        for (uint64_t i = Arg1.length-1; i < Arg1.length ; i--) {
-            temp_ = Arg1.Value[i];
-            for (uint64_t j = 0; j <= 7; j++) {
-                if ((temp_ >> j)&1 == 1) {
-                    Number temporary = decaler_bit(Arg2,(Arg1.length-i-1)*8+j); //on décale le nombre de bit
-                    memcpy(Inter_Operation.Value+Inter_Operation.length-temporary.length,temporary.Value,temporary.length);
-                    Result = _addition_uint(Result,Inter_Operation); //puis on fait une addition sur Résultat
-                }
+            if (temp_ & 1 == 1) { //check if it's a 1
+                Number temporary = bit_shift(_Multiplied, (_Multiplier.length - i - 1) * 8 + j); //bit shift
+                memcpy(Inter_Operation.Value + Inter_Operation.length - temporary.length, temporary.Value, temporary.length);
+                //No need to set Inter_Operation back to 0 : temporary will always take up more space so it'll reset the memory it had anyway
+                FreeNumber(temporary); //frees it (less memory usage)
+                Result = _addition_uint(Result, Inter_Operation); //add to Result
+
             }
+            temp_ = temp_ >> 1; //shifts
+        }
+    }
+    Result.flag = _Multiplied.flag ^ _Multiplier.flag; //does a xor cause - * - = + and + * + = + while if only one - it's -
+    return Result;
+}
+
+Number* Split(Number _From, uint64_t where) {
+    //splits the Input to 2 numbers, cutted down at 'where'
+    //r, the return value, will always have a length of 2. r[0] is the low part of _From and r[1] is the high part (_From = r[1] << where + r[0])
+    if (where > _From.length) {
+        Number* r = (Number*)calloc(2, sizeof(Number));
+        r[0] = _From; //if where too much, the low Number will be the input and the high will be 0
+        r[1] = Create_Number(0);
+        return r;
+    }
+    else {
+        Number* r = (Number*)calloc(2, sizeof(Number));
+        r[0] = Create_Number(where);
+        memcpy(r[0].Value, _From.Value + _From.length - where, where);
+        r[1] = Create_Number(_From.length - where);
+        memcpy(r[1].Value, _From.Value, r[1].length);
+        return r;
+    }
+}
+
+Number karatsuba_implementation(Number a1, Number a2) {
+    //this version frees the args. DO NOT USE OUTSIDE FUNCTION
+    //Child function, DO NOT CALL
+    if (a1.length < 100 && a2.length < 100) {
+        uint64_t Arg1_number_of_one = Get_Number_of1s(a1);
+        uint64_t Arg2_number_of_one = Get_Number_of1s(a2);
+        if (Arg2_number_of_one > Arg1_number_of_one) { //takes for base the number with the least amount of 1s (so less additions & bit shifting)
+            Number r = naive_muliplication_system(a2, a1);
+            FreeNumber(a2);
+            FreeNumber(a1);
+            return r;
+            return r;
+        }
+        else {
+            Number r = naive_muliplication_system(a1, a2);
+            FreeNumber(a2);
+            FreeNumber(a1);
+            return r;
+        }
+    }
+    uint64_t temp__ = max(a1.length, a2.length);
+    temp__ = temp__ / 2;
+    Number* split1 = Split(a1, temp__);
+    Number* split2 = Split(a2, temp__);
+    //free the numbers
+    FreeNumber(a1);
+    FreeNumber(a2);
+    Number add1 = addition_Numbers(split1[0], split1[1]);
+    Number add2 = addition_Numbers(split2[0], split2[1]);
+    Number s1 = karatsuba_implementation(split1[0], split2[0]); //after that, split1[0] and split2[0] are freed
+    Number s2 = karatsuba_implementation(add1, add2);
+    Number s3;
+    if (split1[1].length == 0 || split2[1].length == 0) {
+        return addition_Numbers(bit_shift(subtraction_Numbers(s2,s1),temp__*8),s1);
+        // <==> return (s2-s1)*256^temp__ + s1
+    }
+    else {
+        s3 = karatsuba_implementation(split1[1], split2[1]); //after that, split1[1] and split2[1] are freed -> no usage of freed number
+        return addition_Numbers(bit_shift(s3,temp__*16),addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2,s1),s3),temp__*8),s1));
+        // <==> return s3*256^(temp__*2) + (s2 - s1 - s3)*256^temp__ + s1
+    }
+    return Create_Number(0); //returns an empty number (debug ; makes sure it handles the error for now)
+}
+
+Number multiplication_Numbers(Number Arg1, Number Arg2) { 
+    //Called function
+    //handles small number with the naive method, else does karatsuba.
+    //SAFE : doesn't delete the Input
+    
+    
+    //Karatsuba implementation :
+
+    if (Arg1.length < 100 && Arg2.length < 100) { //The 100 here is totally arbritrary. It got chosen because it was the fastest between 10, 100 and 1000
+
+        uint64_t Arg1_number_of_one = Get_Number_of1s(Arg1);
+        uint64_t Arg2_number_of_one = Get_Number_of1s(Arg2);
+        if (Arg2_number_of_one > Arg1_number_of_one) { //takes for base the number with the least amount of 1s (so less additions & bit shifting)
+            return naive_muliplication_system(Arg2, Arg1);
+        }
+        else {
+            return naive_muliplication_system(Arg1, Arg2);
         }
     }
     else {
-        for (uint64_t i = Arg2.length - 1; i < Arg2.length ; i--) {
-            temp_ = Arg2.Value[i];
-            for (uint64_t j = 0; j <= 7; j++) {
-                if ((temp_ >> j)&1 == 1) {
-                    Number temporary = decaler_bit(Arg1,(Arg2.length-i-1)*8+j); //on décale le nombre de bit
-                    memcpy(Inter_Operation.Value+Inter_Operation.length-temporary.length,temporary.Value,temporary.length);
-                    Result = _addition_uint(Result,Inter_Operation); //puis on fait une addition sur Résultat
-                }
-            }
+        uint64_t temp__ = max(Arg1.length, Arg2.length);
+        temp__ = temp__ / 2;
+        Number* split1 = Split(Arg1, temp__);
+        Number* split2 = Split(Arg2, temp__);
+        Number add1 = addition_Numbers(split1[0], split1[1]);
+        Number add2 = addition_Numbers(split2[0], split2[1]);
+        Number s1 = karatsuba_implementation(split1[0], split2[0]); 
+        Number s2 = karatsuba_implementation(add1, add2);
+        Number s3;
+        if (split1[1].length == 0 || split2[1].length == 0) {
+            return addition_Numbers(bit_shift(subtraction_Numbers(s2, s1), temp__ * 8), s1);
+            // <==> return (s2-s1)*256^temp__ + s1
+        }
+        else {
+            s3 = karatsuba_implementation(split1[1], split2[1]);
+            return addition_Numbers(bit_shift(s3, temp__ * 16), addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2, s1), s3), temp__ * 8), s1));
+            // <==> return s3*256^(temp__*2) + (s2 - s1 - s3)*256^temp__ + s1
         }
     }
-    return Result;
 }
 
 
@@ -350,6 +611,8 @@ Number multiplication_Number(Number Arg1, Number Arg2) { //d'abord on va faire l
 /* ----------------------------------------------- */
 
 char* convert_to_str(Number from_) {
+    //BASE 16 REPRESENTATION
+    // --- UNUSED ---
     char* returned = (char*)(calloc(from_.length*2+2,sizeof(char)));
     if (returned == NULL) {
         exit(47);
@@ -369,8 +632,8 @@ char* convert_to_str(Number from_) {
 }
 
 /* ----------------------------------------------- */
-char* convert_to_base10(Number from_) {
-    Number copy = Create_Number(from_.length);
+char* number_to_base10_str(Number from_) {
+    Number copy = Create_Number(from_.length); //copy from_ to not destroy the input
     memcpy(copy.Value, from_.Value, from_.length);
     uint64_t number_of_zeros = 0;
     for (uint64_t i = 0; copy.Value[i] == 0; i++) {
@@ -382,8 +645,8 @@ char* convert_to_base10(Number from_) {
     char_len = (char_len * 241)/100 + 1;
     char* char_returned = (char*)calloc(char_len, sizeof(char));
     if (char_returned == NULL) {
-        PanickError("calloc failed (convert_to_base10)");
-        exit(100);
+        PanickError("char_returned calloc failed (number_to_base10_str)");
+        exit(0x10001);
     }
     memset(char_returned, '0', char_len);
     uint16_t truc = 0;
@@ -430,14 +693,14 @@ int main()
     if (timespec_get(&my_time, TIME_UTC) == NULL) {
         exit(61);
     }
-    Number a_conv = parsing(a);
-    Number b_conv = parsing(b);
-    char* a_str = convert_to_base10(a_conv);
-    char* b_str = convert_to_base10(b_conv);
-    Number c_conv = addition_uint(a_conv, b_conv);
-    char* c_str = convert_to_base10(c_conv);
-    Number d_conv = multiplication_Number(a_conv, b_conv);
-    char* d_str = convert_to_base10(d_conv);
+    Number a_conv = parse_base10_str(a);
+    Number b_conv = parse_base10_str(b);
+    char* a_str = number_to_base10_str(a_conv);
+    char* b_str = number_to_base10_str(b_conv);
+    Number c_conv = addition_Numbers(a_conv, b_conv);
+    char* c_str = number_to_base10_str(c_conv);
+    Number d_conv = multiplication_Numbers(a_conv, b_conv);
+    char* d_str = number_to_base10_str(d_conv);
 
     if (timespec_get(&new_time, TIME_UTC) == NULL) {
         exit(60);
