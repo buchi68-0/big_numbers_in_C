@@ -24,20 +24,24 @@ void CreateConsoleWindow() return;
 #endif
 
 typedef struct Number {
-    uint8_t* Value;
+    uint32_t* Value;
     uint64_t length;
-    bool flag;
+    bool sign;
 };
 
+
 void FreeNumber(Number _Tofree) {
-    free(_Tofree.Value);
-    _Tofree.Value = NULL;
-    _Tofree.length = 0;
+    if (_Tofree.Value == NULL) return;
+    if (_CrtIsValidHeapPointer(_Tofree.Value)) {
+        free(_Tofree.Value);
+        _Tofree.Value = NULL;
+        _Tofree.length = 0;
+    }
 }
-//faire un signed number : il faut juste ajouter un flag qui vaut 1 ou 0 suivant s'il est négatif ou pas
+//faire un signed number : il faut juste ajouter un sign qui vaut 1 ou 0 suivant s'il est négatif ou pas
 /*l'addition/soustraction reste simple :
 positif + positif : rien ne change
-positif - positif : rien ne change (si le nombre 1 est supérieur au nombre 2 sinon on mets le flag puis on ajoute au lieu de reduire)
+positif - positif : rien ne change (si le nombre 1 est supérieur au nombre 2 sinon on mets le sign puis on ajoute au lieu de reduire)
 positif + négatif = positif - positif
 negatif + positif = -(positif - positif)
 positif - négatif = positif + positif
@@ -47,29 +51,73 @@ negatif + negatif = -(positif + positif)*/
 //bref
 
 void PanickError(const char* msg) {
-    printf("\nError : %s",msg);
+    printf("\nError : %s\n", msg);
 }
 void PanickError(char* msg) {
-    printf("\nError : %s\n",msg);
+    printf("\nError : %s\n", msg);
 }
 
-Number Create_Number(uint64_t base_length) {
-    Number r = { (uint8_t*)calloc(base_length,1), base_length, false };
+uint64_t minimum_for_karatsuba = 30;
+
+Number Create_Number(const uint64_t base_length) {
+	//creates a Number of base_length
+    Number r = { (uint32_t*)calloc(base_length,4), base_length, false };
     if (r.Value == NULL) {
         PanickError("allocation of r in function Create_Number failed");
         printf("Ending programm...\n");
-        exit(0x10001); 
+        exit(0x10001);
     }
     return r;
+}
+Number Create_Number(const uint64_t base_length, const uint32_t first_value) {
+    //sets the first value
+    Number r = { (uint32_t*)calloc(base_length,4), base_length, false };
+    if (r.Value == NULL) {
+        PanickError("allocation of r in function Create_Number failed");
+        printf("Ending programm...\n");
+        exit(0x10001);
+    }
+    if (base_length > 0) r.Value[0] = first_value;
+    return r;
+}
+
+void Check_for_useless_zero(Number * _Arg) {
+    uint64_t retest = 0;
+    for (uint64_t i = 0; (*_Arg).Value[i] == 0 && i < (*_Arg).length; i++) {
+        retest++;
+    }
+    if (retest == (*_Arg).length) {
+        FreeNumber((*_Arg));
+        (*_Arg) = Create_Number(0);
+        return;
+    }
+    else if (retest != 0) {
+        (*_Arg).length -= retest;
+        for (uint64_t i = 0; i < (*_Arg).length; i++) {
+            (*_Arg).Value[i] = (*_Arg).Value[i + retest];
+        }
+        (*_Arg).Value = (uint32_t*)realloc((*_Arg).Value, (*_Arg).length * sizeof(uint32_t));
+        if ((*_Arg).Value == NULL) { //checking if reallocation worked
+            PanickError("Reallocation of result in function _Addition_Unsigned failed");
+            printf("Ending programm...\n");
+            exit(0x10001);
+        }
+        return;
+    }
+    return;
 }
 
 
 // ----------- UNUSED -----------------
-bool Equal(Number Var1, Number Var2) {
-    //complexité O(n)
-    int64_t difference = Var1.length-Var2.length;
+
+//Number constant_10power9 = Create_Number(1, 1000000000);
+//Number constant_10 = Create_Number(1, 10);
+
+bool Equal(const Number Var1, const Number Var2) {
+    //
+    int64_t difference = Var1.length - Var2.length;
     for (int64_t i = Var2.length; i > 0; i--) {
-        if (Var1.Value[i+difference] != Var2.Value[i]) return false;
+        if (Var1.Value[i + difference] != Var2.Value[i]) return false;
     }
     if (difference > 0) {
         for (int64_t i = 0; i < difference; i++) {
@@ -84,32 +132,6 @@ bool Equal(Number Var1, Number Var2) {
     return true;
 }
 
-Number Max(Number Var1, Number Var2) {
-    //Doesn't care about the flag
-    //Is actually used now
-    if (Var1.length > Var2.length) {
-        uint64_t difference = Var1.length-Var2.length;
-        for (uint64_t i = 0; i < difference; i++) {
-            if (Var1.Value[i] > 0)return Var1;
-        }
-        for (uint64_t i = 0; i < Var2.length;i++){
-            if (Var1.Value[i+difference] > Var2.Value[i]) return Var1;
-            else if (Var1.Value[i+difference] < Var2.Value[i]) return Var2;
-        }
-    }
-    else {
-        uint64_t difference = Var2.length-Var1.length;
-        for (uint64_t i = 0; i < difference; i++) {
-            if (Var2.Value[i] > 0)return Var2;
-        }
-        for (uint64_t i = 0; i < Var1.length;i++){
-            if (Var2.Value[i+difference] > Var1.Value[i]) return Var1;
-            else if (Var2.Value[i+difference] < Var1.Value[i]) return Var2;
-        }
-    }
-    return Var2; //Si les deux sont égaux, on en retourne juste 1
-}
-
 uint64_t uclen(unsigned char* input_) {
     uint64_t returned = 0;
     while (true) {
@@ -121,125 +143,64 @@ uint64_t uclen(unsigned char* input_) {
 }
 // ----------- END UNUSED -------------
 
+Number Max(const Number Var1, const Number Var2) {
+    //Doesn't care about the sign
+    //Is actually used now
+    if (Var1.length > Var2.length) {
+        uint64_t difference = Var1.length - Var2.length;
+        for (uint64_t i = 0; i < difference; i++) {
+            if (Var1.Value[i] > 0)return Var1;
+        }
+        for (uint64_t i = 0; i < Var2.length; i++) {
+            if (Var1.Value[i + difference] > Var2.Value[i]) return Var1;
+            else if (Var1.Value[i + difference] < Var2.Value[i]) return Var2;
+        }
+    }
+    else {
+        uint64_t difference = Var2.length - Var1.length;
+        for (uint64_t i = 0; i < difference; i++) {
+            if (Var2.Value[i] > 0)return Var2;
+        }
+        for (uint64_t i = 0; i < Var1.length; i++) {
+            if (Var2.Value[i + difference] > Var1.Value[i]) return Var1;
+            else if (Var2.Value[i + difference] < Var1.Value[i]) return Var2;
+        }
+    }
+    return Var2; //if equal, just return one of them
+}
 
-bool format_str_for_parsing(char* _Input,uint64_t Input_length) {
+
+bool format_str_for_parsing(char* _Input, const uint64_t Input_length) {
     //takes an Input (char*) supposed to be a string of digits (i.e : "1234")
     //formats it so it can be used propelly by parse_base10_str (-> {1,2,3,4})
     //returns false if Input not a string of digits ; true else
-    for (uint64_t i = 0; i < Input_length; i++) { 
-        if ((48 > _Input[i] || _Input[i] > 57)) {
-            return false; //ce n'est pas un chiffre; on retourne false
-        }
-        _Input[i] -= '0'; //sinon on coverti pour avoir {1,2,3,4} par exemple au lieu de {49,50,51,52}
+    for (uint64_t i = 0; i < Input_length; i++) {
+        _Input[i] -= '0'; //convert to get {1,2,3,4} for exemple instead of {49,50,51,52}
+        if (_Input[i] > '9') return false; //not a digit, return false (hope that if it's going below 0 it comes back to 256)
     }
     return true;
 }
 
-void divide_char_by2(char* _Input, uint64_t Input_length, uint64_t* Number_of_zero) {
+void divide_char_by2(char* _Input, const uint64_t Input_length, uint64_t * Number_of_zero) {
     //"divide" _Input by 2 ; used for parsing
     //won't create errors if _Input hasn't 'format_str_for_parsing' format
     //WILL create errors if _Input[Input_length-1] is even (exception : Input_length != strlen(_Input))
     //add to Number_of_zero if new useless '0' detected
-
-    for (uint64_t i = Input_length-1; i >= (*Number_of_zero) && i < Input_length; i--) { 
+    for (uint64_t i = Input_length - 1; i >= (*Number_of_zero) && i < Input_length; i--) {
         // i >= (*Number_of_zero) && i < Input_length :
         //is a security if (*Number_of_zero) is 0 (then; it will always be >= 0 because it's unsigned)
         if (_Input[i] % 2 == 1) { //if even
-            if (i == Input_length - 1) {
-                printf("burh"); //trap to debugger
-            }
-            _Input[i] -= 1; //remove 1
-            _Input[i + 1] += 5; //and add 5 to next digit (creates error if i is strlen(_Input-1)
+            _Input[i + 1] += 5; //add 5 to next digit (creates error if i is strlen(_Input-1)
+            _Input[i] -= 1;
         }
         _Input[i] = _Input[i] / 2; //dividing by 2
         if (i == (*Number_of_zero) && _Input[i] == 0) { //new zero detected (at the left)
-            for (uint64_t j = i; j < Input_length && _Input[j] == 0; j++) (*Number_of_zero)++; 
-            //add 1 to Number_of_zero (and rechecks if others zeros on the right)
-            //it's O(1) after first call else it's O(k) with k the number of useless '0'
+            (*Number_of_zero)++;
         }
     }
 }
 
-Number parse_base10_str(char* _Input) {
-    //_Input doit être une chaîne de charactères représentant des chiffres
-    //parse_base10_str est moins efficace s'il y a des '0' inutiles (à gauche de la châine)
-    uint64_t length_ = strlen(_Input);
-    char* final_variable = (char*)calloc(length_+1,1);
-    if (final_variable == NULL) {
-        PanickError("Allocation of final_variable in function parse_base10_str failed");
-        printf("Ending programm...\n");
-        exit(0x10001); //failed allocation
-    }
 
-    memcpy(final_variable,_Input,length_); //strcpy seems to have issues
-    
-    uint64_t number_of_zeros = 0; //counts zeros from the left
-    
-    // final_variable verification
-    bool verification = format_str_for_parsing(final_variable,length_);
-    if (!verification) {
-        PanickError("string given to parse_base10_str hasn't right format");
-        return {NULL,0}; //returns empty Number
-    }
-    
-    
-    uint64_t length = length_-number_of_zeros; //length of r
-    
-    //on a : 256**x = 10**y ; on a y (length); on cherche x : on a xlog(256) = ylog(10) <==> x = y/log(256) (log(10) = 1; on divise par log(256) de chaque côté)
-    length = (length*100)/241 + 1; 
-
-    Number r = Create_Number(length); //creating Number
-    if (r.Value == NULL) { //checking if allocation worked
-        PanickError("Allocation of r in function parse_base10_str failed");
-        printf("Ending programm...\n");
-        exit(0x10001); 
-    }
-    uint8_t current_number = 0; //next value to add to r
-
-    uint64_t pointer = 1; //which value of r the programm will modify (used as r.Value[r.length-pointer])
-
-    int nombre_operation = 0; //track the bit position to modify current_number
-
-    while (final_variable[0] != 10) { //The loop always end (verified)
-        if (final_variable[length_ - 1] % 2 == 1) { //handle the last digit (if even)
-            final_variable[length_ - 1] -= 1; //if first digit even, remove it and add to current_number
-            current_number |= (1 << nombre_operation); //use bit shifting
-            //using 'or' operator because it might be faster than an add
-        }
-        nombre_operation += 1; //each loop iteration, the bit we might change changes
-        if (nombre_operation == 8) { //if it's 8, we finished the byte, coming back to zero
-            r.Value[r.length-pointer] = current_number; //add to r
-            current_number = 0;
-            nombre_operation = 0;
-            pointer++; //change pointer
-        }
-        divide_char_by2(final_variable,length_,&number_of_zeros);
-        if (number_of_zeros == length_) final_variable[0] = 10;
-    }
-    r.Value[r.length-pointer] = current_number; 
-    //when loop is finished, current_number can still have a value, we have to add it still
-    
-
-    //removes useless 0s at the left of r
-    int64_t test = 0; //with the optimized size calculation, this thing is about O(3) maximum
-    for (uint64_t i = 0; r.Value[i] == 0; i++) {
-        test++;
-    }
-    if (test != 0) { //if more than 1 useless 0
-        r.length = r.length - test;
-        for (uint64_t i = 0; i < r.length; i++) {
-            r.Value[i] = r.Value[i + test]; //O(n) ; we move everything to the left
-        }
-        r.Value = (uint8_t*)realloc(r.Value, r.length); //we realloc to a Block of right size
-        if (r.Value == NULL) { //checking if reallocation worked
-            PanickError("Reallocation of r in function parse_base10_str failed");
-            printf("Ending programm...\n");
-            exit(0x10001); 
-        }
-    }
-
-    return r;
-}
 
 /* ----------------------------------------------- */
 
@@ -248,17 +209,17 @@ Number parse_base10_str(char* _Input) {
 * The only callable functions are subtraction_Numbers and addiction_Numbers
 * Others could make false results or even maybe errors
 */
-Number _Subtraction_No_Flag(Number _A1, Number _A2) {
+Number _Subtraction_Unsigned(const Number _A1,const Number _A2) {
     //Child function, DO NOT CALL
 
     Number Result = Create_Number(_A1.length); //max size : _A1's size
-    uint8_t retenue = 0;
+    uint32_t retenue = 0;
     int16_t intermidiate = 0;
     for (int i = 0; i < _A2.length; i++) {
         intermidiate = _A1.Value[_A1.length - i - 1] - _A2.Value[_A2.length - i - 1] - retenue;
         if (intermidiate < 0) {
             retenue = 1;
-            intermidiate += 256;
+            intermidiate += 4294967296; //is 2 ^ 32 ; didn't want to do (1 << 32) because I got told it's just 32 times << 1
         }
         Result.Value[Result.length - i - 1] = intermidiate;
     }
@@ -266,93 +227,77 @@ Number _Subtraction_No_Flag(Number _A1, Number _A2) {
         intermidiate = _A1.Value[_A1.length - i - 1] - retenue;
         if (intermidiate < 0) {
             retenue = 1;
-            intermidiate += 256;
+            intermidiate += 4294967296; //is 2 ^ 32 ; didn't want to do (1 << 32) because I got told it's just 32 times << 1
         }
         Result.Value[Result.length - i - 1] = intermidiate;
     }
     return Result;
 }
-Number _Addition_No_Flag(Number _A1, Number _A2) {
+Number _Addition_Unsigned(const Number _A1, const Number _A2) {
     //_A1.length HAS to be SUPERIOR or equal to _A2.length
     //Child function DO NOT CALL
 
     uint64_t length = _A1.length + 1; //length of result
     Number result = Create_Number(length);
-    uint16_t _number = 0; //it's the intermediate for the addition
-    //this is uint16 because if there's 255+255 it's bigger than 255 so we need one more bit
-    //(but uint9_t doesn't exist)
+    uint64_t _number = 0; //it's the intermediate for the addition
     for (uint64_t i = 0; i < _A2.length; i++) { //we add normally until we reach the end of one Number
-        _number += _A1.Value[_A1.length - i - 1] + _A2.Value[_A2.length - i - 1];
+        _number += (uint64_t)_A1.Value[_A1.length - i - 1];
+        _number += (uint64_t)_A2.Value[_A2.length - i - 1];
         //we add because of the potential retenue
-        result.Value[result.length - i - 1] = _number & 255; //takes first 8 bits
-        _number = _number >> 8; //shifting to keep the retenue
+        result.Value[result.length - i - 1] = _number & 4294967295;  //takes first 32 bits
+        _number = _number >> 32; //shifting to keep the retenue
         //(even though yeah the retenue can only be 1 or 0)
     }
     for (uint64_t i = _A2.length; i < _A1.length; i++) {
-        _number += _A1.Value[_A1.length - i - 1];
-        result.Value[result.length - i - 1] = _number & 255;
-        _number = _number >> 8;
+        _number += (uint64_t)_A1.Value[_A1.length - i - 1];
+        result.Value[result.length - i - 1] = _number & 4294967295;
+        _number = _number >> 32;
     }
     result.Value[0] = _number;
 
 
     //check for useless 0s
-    uint64_t retest = 0;
-    for (uint64_t i = 0; result.Value[i] == 0; i++) {
-        retest++;
-    }
-    if (retest != 0) {
-        result.length -= retest;
-        for (uint64_t i = 0; i < result.length; i++) {
-            result.Value[i] = result.Value[i + retest];
-        }
-        result.Value = (uint8_t*)realloc(result.Value, result.length);
-        if (result.Value == NULL) { //checking if reallocation worked
-            PanickError("Reallocation of result in function addition_Numbers failed");
-            printf("Ending programm...\n");
-            exit(0x10001);
-        }
-    }
+    Check_for_useless_zero(&result);
     return result;
 }
 
 
 
-Number subtraction_Numbers(Number _Base, Number _Subtraction) {
+Number subtraction_Numbers(const Number _Base,const Number _Subtraction) {
     //Does _Base - _Subtraction
     //This is the called function
-    if (!(_Base.flag || _Subtraction.flag)) { //positive - positive
-        Number max__ = Max(_Base,_Subtraction);
-        if (max__.Value == _Base.Value) return _Subtraction_No_Flag(_Base,_Subtraction);
+    if (!(_Base.sign || _Subtraction.sign)) { //positive - positive
+        Number max__ = Max(_Base, _Subtraction);
+        if (max__.Value == _Base.Value) return _Subtraction_Unsigned(_Base, _Subtraction);
         else {
-            Number r = _Subtraction_No_Flag(_Subtraction,_Base);
-            r.flag = true; // a-b = -(b-a)
+            Number r = _Subtraction_Unsigned(_Subtraction, _Base);
+            r.sign = true; // a-b = -(b-a)
             return r;
         }
     }
-    else if (_Base.flag && _Subtraction.flag) {//negative - negative
+    else if (_Base.sign && _Subtraction.sign) {//negative - negative
         //negative - negative = negative + positive = -(positive - positive);
-        Number max__ = Max(_Base,_Subtraction);
+        Number max__ = Max(_Base, _Subtraction);
         if (max__.Value == _Base.Value) {
-            Number r = _Subtraction_No_Flag(_Base,_Subtraction);
-            r.flag = true;
-        } 
+            Number r = _Subtraction_Unsigned(_Base, _Subtraction);
+            r.sign = true;
+        }
         else {
-            return _Subtraction_No_Flag(_Subtraction,_Base);
+            return _Subtraction_Unsigned(_Subtraction, _Base);
             //if _Subtraction > ; number will be positive anyway
         }
     }
-    else if (_Base.flag) { //negative - positive
+    else if (_Base.sign) { //negative - positive
         // <==> -(positive + positve)
         //that one's EZ
         if (_Base.length > _Subtraction.length) {
-            Number r = _Addition_No_Flag(_Base,_Subtraction);
-            r.flag = true;
+            Number r = _Addition_Unsigned(_Base, _Subtraction);
+            r.sign = true;
             return r;
         }
         else {
-            Number r = _Addition_No_Flag(_Base,_Subtraction);
-            r.flag = true;
+            Number r = _Addition_Unsigned(_Base, _Subtraction);
+            r.sign = true;
             return r;
         }
     }
@@ -360,10 +305,10 @@ Number subtraction_Numbers(Number _Base, Number _Subtraction) {
         // <==> positive + positive
         //EZ as well
         if (_Base.length > _Subtraction.length) {
-            return _Addition_No_Flag(_Base, _Subtraction);
+            return _Addition_Unsigned(_Base, _Subtraction);
         }
         else {
-            return _Addition_No_Flag(_Subtraction, _Base);
+            return _Addition_Unsigned(_Subtraction, _Base);
         }
 
     }
@@ -373,101 +318,100 @@ Number subtraction_Numbers(Number _Base, Number _Subtraction) {
 
 Number addition_Numbers(Number _Arg1, Number _Arg2) {
     //This is the called function.
-    //It will then handle flags and sizes with other child functions
-    if (_Arg1.flag && _Arg2.flag) { //both negative
+    //It will then handle signs and sizes with other child functions
+    //not const, because the sign of _Arg1 and _Arg2 can change (is reverted after)
+    if (_Arg1.sign && _Arg2.sign) { //both negative
         if (_Arg1.length > _Arg2.length) {
-            Number r = _Addition_No_Flag(_Arg1,_Arg2);
-            r.flag = true; //set to negative (negative + negative = -(positive + positive))
+            Number r = _Addition_Unsigned(_Arg1, _Arg2);
+            r.sign = true; //set to negative (negative + negative = -(positive + positive))
             return r;
         }
         else {
-            Number r = _Addition_No_Flag(_Arg2,_Arg1);
-            r.flag = true; //set to negative (negative + negative = -(positive + positive))
+            Number r = _Addition_Unsigned(_Arg2, _Arg1);
+            r.sign = true; //set to negative (negative + negative = -(positive + positive))
             return r;
         }
     }
-    else if (!(_Arg1.flag || _Arg2.flag)) { //both positive (basic addition)
+    else if (!(_Arg1.sign || _Arg2.sign)) { //both positive (basic addition)
         if (_Arg1.length > _Arg2.length) {
-            Number r = _Addition_No_Flag(_Arg1,_Arg2);
-            return r;
+            return _Addition_Unsigned(_Arg1, _Arg2);
         }
         else {
-            Number r = _Addition_No_Flag(_Arg2,_Arg1);
-            return r;
+            return _Addition_Unsigned(_Arg2, _Arg1);
         }
     }
-    else if (_Arg1.flag) { //only cases left : only _Arg1 is negative and only _Arg2 is negative
+    else if (_Arg1.sign) { //only cases left : only _Arg1 is negative and only _Arg2 is negative
         //negative + positive = -(positive - positive)
-        //CAREFULL : the returned value can be negative, so the flag has to be a xor with current flag
-        _Arg1.flag = false; //temporary set the number to positive
-        Number r = subtraction_Numbers(_Arg1,_Arg2);
-        r.flag = r.flag ^ 1;
-        _Arg1.flag = true;
+        //CAREFULL : the returned value can be negative, so the sign has to be a xor with current sign
+        _Arg1.sign = false; //temporary set the number to positive
+        Number r = subtraction_Numbers(_Arg1, _Arg2);
+        r.sign = r.sign ^ 1;
+        _Arg1.sign = true;
         return r;
     }
     else {
         //positive + negative = positive - positive
         //though it's litterally just a subtraction
-        _Arg2.flag = false;
-        Number r = subtraction_Numbers(_Arg1,_Arg2);
-        _Arg2.flag = true;
+        _Arg2.sign = false;
+        Number r = subtraction_Numbers(_Arg1, _Arg2);
+        _Arg2.sign = true;
         return r;
     }
 }
 
 /* ----------------------------------------------- */
 
-Number _addition_uint(Number _Arg1, Number _Arg2) { 
+void private_add_assign(Number _Arg1, Number _Arg2) {
     //Doesn't optimize memory ; takes 2 same-length Number so I don't have to check the size difference as well
     //Add _Arg2 into _Arg1
     //Has to be used INTO Multiplication_Numbers because it DOESN'T handle different sizes
-    Number result = Create_Number(_Arg1.length); 
     //Takes for size the same as the rest
     //Why ? because _Arg1 and _Arg2 have for length the MAXIMUM of the multiplication of the 2 Numbers (in Multiplication_Numbers)
-    uint16_t _number = 0; //intermidiate
+    uint64_t _number = 0; //intermidiate
     for (uint64_t i = _Arg1.length - 1; i < _Arg1.length; i--) {
         _number += _Arg1.Value[i] + _Arg2.Value[i];
-        result.Value[i] = _number & 255; //takes 8 first bits
-        _number = _number >> 8; //keep the retenue
+        _Arg1.Value[i] = _number & 4294967295; //takes 32 first bits (it's 2^32 - 1 so 1111 1111 1111... 1111)
+        _number = _number >> 32; //keep the retenue
     }
-    return result;
+    return;
 }
 
-Number bit_shift(Number _From, uint64_t number) {
+Number bit_shift(Number _From, const uint64_t number) {
 
-    uint64_t nb_octet = number / 8;
-    uint8_t nb_bit = number % 8;
-    
-    uint64_t length_ = number / 8 + _From.length;
+    uint64_t nb_octet = number / 32;
+    uint32_t nb_bit = number % 32;
+
+    uint64_t length_ = number / 32 + _From.length;
     if (nb_bit != 0) length_++;
     Number returned = Create_Number(length_); //handles problems
-    uint16_t temp[2] = { 0, 0 };
+    uint64_t temp[2] = { 0, 0 };
     if (nb_bit != 0) {
-        for (uint64_t i = _From.length; i < _From.length+1; i--) {
-            temp[i % 2] = _From.Value[i-1] << nb_bit;
-            returned.Value[i] = temp[i % 2] & 255;
-            returned.Value[i] = returned.Value[i]|temp[(i + 1) % 2];
-            temp[i % 2] = temp[i % 2] >> 8;
+        for (uint64_t i = _From.length; i < _From.length + 1; i--) {
+            temp[i % 2] = _From.Value[i - 1] << nb_bit;
+            returned.Value[i] = temp[i % 2] & 4294967295;
+            returned.Value[i] = returned.Value[i] | temp[(i + 1) % 2];
+            temp[i % 2] = temp[i % 2] >> 32;
         }
         returned.Value[0] = temp[1]; //the loop will alwyas end at i = 1 so we just do as if i == 0
     }
     else {
-        memcpy(returned.Value, _From.Value, _From.length); //if it's moving just bytes, then it's easy
+        memcpy(returned.Value, _From.Value, _From.length * 4); //if it's moving just bytes, then it's easy
     }
     return returned;
 }
 
-uint64_t Get_Number_of1s(Number _Arg) {
+// changing -> will become unused
+uint64_t Get_Number_of1s(const Number _Arg) {
     //so it's a basic for loop that check for each byte, each bit
-    //complexity : O(8n) with n the length of _Arg
-    //there'll be problems if the length is 2^61+ (then 8*length is an overflow)
+    //complexity : O(32n) with n the length of _Arg
+    //there'll be problems if the length is 2^61+ (then 32*length is an overflow)
     uint64_t r = 0;
-    uint8_t _temp;
+    uint32_t _temp;
     for (uint64_t i = 0; i < _Arg.length; i++) {
         _temp = _Arg.Value[i];
         for (uint64_t j = 0; j <= 7; j++) {
-            if (_temp&1 == 1) r++; //checks if 1 or 0
-            _temp = _temp >> 1; 
+            if (_temp & 1 == 1) r++; //checks if 1 or 0
+            _temp = _temp >> 1;
             //got told >> n is n times >>1 so i guess it's better than doing n(n+1)/2 shifting
         }
     }
@@ -476,112 +420,101 @@ uint64_t Get_Number_of1s(Number _Arg) {
 
 // -- Now, let's do a function so multiplication_Numbers only use Number of ones and this function to get the result
 //(it makes it easy to implement karatsuba algorithm because i can then check if the number is long enough to cut it in half))
-Number naive_muliplication_system(Number _Multiplied, Number _Multiplier) {
+Number private_naive_muliplication_system(Number _Multiplied, Number _Multiplier) {
     //basically, multiplication will do the optimal way (take number_of_one, etc.) while this function just multiplies
     //_Multiplied will be the one to be bit shifted according to _Multiplier's 1s positions
     Number Result = Create_Number(_Multiplied.length + _Multiplier.length);//the Result ; maximum length is the addition of both
     //no need to verify, it already handles that in Create_Number
-    Number Inter_Operation = Create_Number(Result.length); //intermidiate ; same length as Result
-    uint8_t temp_;
-    for (uint64_t i = _Multiplier.length - 1; i < _Multiplier.length; i--) {
-        temp_ = _Multiplier.Value[i];
-        for (uint64_t j = 0; j <= 7; j++) {
-            if (temp_ & 1 == 1) { //check if it's a 1
-                Number temporary = bit_shift(_Multiplied, (_Multiplier.length - i - 1) * 8 + j); //bit shift
-                memcpy(Inter_Operation.Value + Inter_Operation.length - temporary.length, temporary.Value, temporary.length);
-                //No need to set Inter_Operation back to 0 : temporary will always take up more space so it'll reset the memory it had anyway
-                FreeNumber(temporary); //frees it (less memory usage)
-                Result = _addition_uint(Result, Inter_Operation); //add to Result
-
-            }
-            temp_ = temp_ >> 1; //shifts
+    Number temporary = Create_Number(Result.length);
+    uint64_t temp_ = 0;
+    //Basic multiplication algorithm, O(n²), won't calculate ones in each numbers again because it's too long
+    for (uint64_t k = 0; k < _Multiplied.length; k++) {
+        for (uint64_t j = 0; j < _Multiplier.length; j++) {
+            temp_ = _Multiplied.Value[_Multiplied.length - k - 1];
+            temp_ *= _Multiplier.Value[_Multiplier.length - j - 1];
+            temporary.Value[temporary.length - k - j - 1] = temp_ & 4294967295;
+            temporary.Value[temporary.length - k - j - 2] = temp_ >> 32; // '-k - j' are doing the bit shifting by themselves
+            private_add_assign(Result, temporary); //add temporary to Result
+            memset(temporary.Value, 0, temporary.length * 4); //does a memset now instead of allocating
         }
     }
-    Result.flag = _Multiplied.flag ^ _Multiplier.flag; //does a xor cause - * - = + and + * + = + while if only one - it's -
+    Result.sign = _Multiplied.sign ^ _Multiplier.sign; //does a xor cause - * - = + and + * + = + while if only one - it's -
+    Check_for_useless_zero(&Result);
     return Result;
 }
-
-Number* Split(Number _From, uint64_t where) {
-    //splits the Input to 2 numbers, cutted down at 'where'
-    //r, the return value, will always have a length of 2. r[0] is the low part of _From and r[1] is the high part (_From = r[1] << where + r[0])
-    if (where > _From.length) {
-        Number* r = (Number*)calloc(2, sizeof(Number));
-        r[0] = _From; //if where too much, the low Number will be the input and the high will be 0
+ 
+Number* Split(const Number target, uint64_t at) {
+    //splits the Input to 2 numbers, cutted down at 'at'
+    //r, the return value, will always have a length of 2. r[0] is the low part of target and r[1] is the high part (target = r[1] << where + r[0])
+    if (at > target.length) {
+        Number* r = (Number*)calloc(2, sizeof(Number)); //did not go for Number r[2] because it was ALWAYS making split1 & split2 (in karatsuba function) THE EXACT SAME
+        r[0] = Create_Number(target.length);
         r[1] = Create_Number(0);
+        r[1].length = 0; //check so i'm sure
+        memcpy(r[0].Value, target.Value, r[0].length * 4);
+        r[0].sign = target.sign; r[1].sign = target.sign;
         return r;
     }
     else {
         Number* r = (Number*)calloc(2, sizeof(Number));
-        r[0] = Create_Number(where);
-        memcpy(r[0].Value, _From.Value + _From.length - where, where);
-        r[1] = Create_Number(_From.length - where);
-        memcpy(r[1].Value, _From.Value, r[1].length);
+        r[0] = Create_Number(at);
+        r[1] = Create_Number(target.length - at);
+        memcpy(r[0].Value, target.Value + target.length - at, at * 4); //from target+target.length-where to length (where amout of uint32)
+        memcpy(r[1].Value, target.Value, r[1].length * 4); //from target to target+where
+        r[0].sign = target.sign; r[1].sign = target.sign;
+        if (!(_CrtIsValidHeapPointer(r[0].Value) && _CrtIsValidHeapPointer(r[1].Value))) {
+            printf("error !");
+        }
         return r;
     }
 }
 
-Number karatsuba_implementation(Number a1, Number a2) {
+Number private_karatsuba_implementation(Number a1, Number a2) {
     //this version frees the args. DO NOT USE OUTSIDE FUNCTION
     //Child function, DO NOT CALL
-    if (a1.length < 100 && a2.length < 100) {
-        uint64_t Arg1_number_of_one = Get_Number_of1s(a1);
-        uint64_t Arg2_number_of_one = Get_Number_of1s(a2);
-        if (Arg2_number_of_one > Arg1_number_of_one) { //takes for base the number with the least amount of 1s (so less additions & bit shifting)
-            Number r = naive_muliplication_system(a2, a1);
-            FreeNumber(a2);
-            FreeNumber(a1);
-            return r;
-            return r;
-        }
-        else {
-            Number r = naive_muliplication_system(a1, a2);
-            FreeNumber(a2);
-            FreeNumber(a1);
-            return r;
-        }
+    if (a1.length < minimum_for_karatsuba && a2.length < minimum_for_karatsuba) {
+        //doesn't care about the number of ones anymore
+        Number r = private_naive_muliplication_system(a2, a1);
+        return r;
     }
     uint64_t temp__ = max(a1.length, a2.length);
     temp__ = temp__ / 2;
     Number* split1 = Split(a1, temp__);
     Number* split2 = Split(a2, temp__);
     //free the numbers
-    FreeNumber(a1);
-    FreeNumber(a2);
+    FreeNumber(a1); //not used after
+    FreeNumber(a2); //not used after
     Number add1 = addition_Numbers(split1[0], split1[1]);
     Number add2 = addition_Numbers(split2[0], split2[1]);
-    Number s1 = karatsuba_implementation(split1[0], split2[0]); //after that, split1[0] and split2[0] are freed
-    Number s2 = karatsuba_implementation(add1, add2);
+    Number s1 = private_karatsuba_implementation(split1[0], split2[0]); //after that, split1[0] and split2[0] are freed
+    Number s2 = private_karatsuba_implementation(add1, add2);
     Number s3;
     if (split1[1].length == 0 || split2[1].length == 0) {
-        return addition_Numbers(bit_shift(subtraction_Numbers(s2,s1),temp__*8),s1);
-        // <==> return (s2-s1)*256^temp__ + s1
+        free(split1);
+        free(split2);
+        return addition_Numbers(bit_shift(subtraction_Numbers(s2, s1), temp__ * 32), s1);
+        // <==> return (s2 - s1)*2^(32^temp__) + s1
     }
     else {
-        s3 = karatsuba_implementation(split1[1], split2[1]); //after that, split1[1] and split2[1] are freed -> no usage of freed number
-        return addition_Numbers(bit_shift(s3,temp__*16),addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2,s1),s3),temp__*8),s1));
-        // <==> return s3*256^(temp__*2) + (s2 - s1 - s3)*256^temp__ + s1
+        s3 = private_karatsuba_implementation(split1[1], split2[1]); //after that, split1[1] and split2[1] are freed -> no usage of freed number
+        free(split1);
+        free(split2);   
+        return addition_Numbers(bit_shift(s3, temp__ * 64), addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2, s1), s3), temp__ * 32), s1));
+        // <==> return s3*2^(32^(temp__*2)) + (s2 - s1 - s3)*2^(32^temp__) + s1
     }
-    return Create_Number(0); //returns an empty number (debug ; makes sure it handles the error for now)
 }
 
-Number multiplication_Numbers(Number Arg1, Number Arg2) { 
+Number multiplication_Numbers(const Number Arg1, const Number Arg2) {
     //Called function
     //handles small number with the naive method, else does karatsuba.
     //SAFE : doesn't delete the Input
-    
-    
+
+
     //Karatsuba implementation :
 
-    if (Arg1.length < 100 && Arg2.length < 100) { //The 100 here is totally arbritrary. It got chosen because it was the fastest between 10, 100 and 1000
-
-        uint64_t Arg1_number_of_one = Get_Number_of1s(Arg1);
-        uint64_t Arg2_number_of_one = Get_Number_of1s(Arg2);
-        if (Arg2_number_of_one > Arg1_number_of_one) { //takes for base the number with the least amount of 1s (so less additions & bit shifting)
-            return naive_muliplication_system(Arg2, Arg1);
-        }
-        else {
-            return naive_muliplication_system(Arg1, Arg2);
-        }
+    if (Arg1.length < minimum_for_karatsuba && Arg2.length < minimum_for_karatsuba) { //The 100 here is totally arbritrary. It got chosen because it was the fastest between 10, 100 and 1000
+        //doesn't care about 1s anymore
+        return private_naive_muliplication_system(Arg2, Arg1);
     }
     else {
         uint64_t temp__ = max(Arg1.length, Arg2.length);
@@ -590,17 +523,17 @@ Number multiplication_Numbers(Number Arg1, Number Arg2) {
         Number* split2 = Split(Arg2, temp__);
         Number add1 = addition_Numbers(split1[0], split1[1]);
         Number add2 = addition_Numbers(split2[0], split2[1]);
-        Number s1 = karatsuba_implementation(split1[0], split2[0]); 
-        Number s2 = karatsuba_implementation(add1, add2);
+        Number s1 = private_karatsuba_implementation(split1[0], split2[0]);
+        Number s2 = private_karatsuba_implementation(add1, add2);
         Number s3;
         if (split1[1].length == 0 || split2[1].length == 0) {
-            return addition_Numbers(bit_shift(subtraction_Numbers(s2, s1), temp__ * 8), s1);
-            // <==> return (s2-s1)*256^temp__ + s1
+            return addition_Numbers(bit_shift(subtraction_Numbers(s2, s1), temp__ * 32), s1);
+            // <==> return (s2-s1)*2^(32^temp__) + s1
         }
         else {
-            s3 = karatsuba_implementation(split1[1], split2[1]);
-            return addition_Numbers(bit_shift(s3, temp__ * 16), addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2, s1), s3), temp__ * 8), s1));
-            // <==> return s3*256^(temp__*2) + (s2 - s1 - s3)*256^temp__ + s1
+            s3 = private_karatsuba_implementation(split1[1], split2[1]);
+            return addition_Numbers(bit_shift(s3, temp__ * 64), addition_Numbers(bit_shift(subtraction_Numbers(subtraction_Numbers(s2, s1), s3), temp__ * 32), s1));
+            // <==> return s3*2^(32^(temp__*2)) + (s2 - s1 - s3)*2^(32^temp__) + s1
         }
     }
 }
@@ -610,51 +543,52 @@ Number multiplication_Numbers(Number Arg1, Number Arg2) {
 
 /* ----------------------------------------------- */
 
-char* convert_to_str(Number from_) {
+char* convert_to_str(const Number from_) {
     //BASE 16 REPRESENTATION
     // --- UNUSED ---
-    char* returned = (char*)(calloc(from_.length*2+2,sizeof(char)));
+    // UNUSABLE !
+    char* returned = (char*)(calloc(from_.length * 2 + 2, sizeof(char)));
     if (returned == NULL) {
         exit(47);
     }
     returned[0] = '0'; //le "0x" au début n'est pas obligatoire, mais je l'aime bien là où il est
     returned[1] = 'x';
-    int a = from_.length-1;
-    char constants[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}; //ça évite d'avoir 16 if/else
+    int a = from_.length - 1;
+    char constants[16] = { '0','1','2','3','4','5','6','7','32','9','A','B','C','D','E','F' }; //ça évite d'avoir 16 if/else
     for (uint64_t i = 0; i <= a; i++) { //on commence du début car little endian
-        uint8_t visualisation = (uint8_t) from_.Value[i];
-        returned[i*2+2] = constants[visualisation/16]; //prends les 4 bits du haut (1010 0101 -> 1010)
-        returned[i*2+3] = constants[visualisation & 15]; //prends les 4 bits du bas (1010 0101 -> 0101) (grâce au & et parce que 15 c'est 0000 1111)
+        uint32_t visualisation = (uint32_t)from_.Value[i];
+        returned[i * 2 + 2] = constants[visualisation / 16]; //prends les 4 bits du haut (1010 0101 -> 1010)
+        returned[i * 2 + 3] = constants[visualisation & 15]; //prends les 4 bits du bas (1010 0101 -> 0101) (grâce au & et parce que 15 c'est 0000 1111)
     }
     returned[from_.length * 2 + 2] = '\0';
-    
+
     return returned;
 }
 
 /* ----------------------------------------------- */
-char* number_to_base10_str(Number from_) {
+char* number_to_base10_str(const Number from_) {
     Number copy = Create_Number(from_.length); //copy from_ to not destroy the input
-    memcpy(copy.Value, from_.Value, from_.length);
+    memcpy(copy.Value, from_.Value, from_.length * 4);
     uint64_t number_of_zeros = 0;
     for (uint64_t i = 0; copy.Value[i] == 0; i++) {
         number_of_zeros++; //permet de ne pas avoir à allouer trop de mémoire 
         //(normalement, c'est pas trop long puisque mes fonctions optimise les Numbers)
     }
-    uint64_t char_len =from_.length-number_of_zeros;
-    //pareil, on a : 256^x = 10^y ; xlog(256) = ylog(10) <==> y = xlog(256) (log(256) ~= 2.41)
-    char_len = (char_len * 241)/100 + 1;
+    uint64_t char_len = from_.length - number_of_zeros;
+    //changed to uint32* so log(2^32) = 32log(2) ~= 9,6329 so we ceil at 9,633
+    char_len = (char_len * 9633) / 1000 + 1;
     char* char_returned = (char*)calloc(char_len, sizeof(char));
     if (char_returned == NULL) {
         PanickError("char_returned calloc failed (number_to_base10_str)");
         exit(0x10001);
     }
     memset(char_returned, '0', char_len);
-    uint16_t truc = 0;
-    uint8_t reste = 0;
+    uint64_t truc = 0;
+    uint32_t reste = 0;
     uint64_t pointer = 0;
-    char contant[10] = { '0','1','2','3','4','5','6','7','8','9'};
-    
-    
+    char contant[10] = { '0','1','2','3','4','5','6','7','8','9' };
+
+
     while (number_of_zeros != copy.length) {
         for (uint64_t i = number_of_zeros; i < copy.length; i++) {
             truc += copy.Value[i];
@@ -662,10 +596,10 @@ char* number_to_base10_str(Number from_) {
             if (i == number_of_zeros && copy.Value[i] == 0) {
                 number_of_zeros++;
             }
-            truc = truc%10;
-            truc = truc << 8;
+            truc = truc % 10;
+            truc = truc << 32;
         }
-        char_returned[char_len - pointer - 1] = contant[truc >> 8]; //quand on arrive à la fin, on a le reste qui est entre 0 et 10
+        char_returned[char_len - pointer - 1] = contant[truc >> 32]; //quand on arrive à la fin, on a le reste qui est entre 0 et 10
         pointer++;
         truc = 0;
     }
@@ -682,19 +616,165 @@ char* number_to_base10_str(Number from_) {
 }
 
 /* ----------------------------------------------- */
+
+uint64_t* convert_str_to_u64(char* _Input, uint64_t* length) {
+    //converts str to uint64_t* that contains numbers from 0 to 999 999 999 for less calculations 
+	//returns NULL if _Input is not a string of digits (as well)
+    //put the length of the uint64_t* in length
+
+    //each uint64_t will be at most 9 digits long
+    //it means, if a number is at most 9 digits, the conversion can be done easily ; else it will be the division by 2^32 strat
+
+    //Anyway
+	uint64_t* r = (uint64_t*)calloc(strlen(_Input) / 9 + 1, sizeof(uint64_t));
+    if (r == NULL) {
+		PanickError("Allocation of r in function convert_str_to_u64 failed");
+		exit(0x10001); //failed allocation
+    }
+	int _Input_length = strlen(_Input);
+	for (int i = 0; i < _Input_length%9; i++) {
+		if (_Input[i] > '9' || _Input[i] < '0') {
+            free(r);
+            return NULL;
+		}
+		r[0] *= 10; r[0] += _Input[i] - '0';
+
+	}
+    uint64_t pointer = 1;
+    for (int i = _Input_length % 9; i < _Input_length; i += 9) {
+        //now we'll do each other number
+        for (int j = 0; j < 9; j++) {
+            if (_Input[i + j] > '9' || _Input[i + j] < '0') {
+                free(r);
+                return NULL;
+            }
+            r[pointer] *= 10; r[pointer] += _Input[i + j] - '0';
+        }
+        pointer++;
+    }
+	*(length) = _Input_length/9+ 1;
+    return r;
+
+}
+
+uint64_t divide_string_by_2power32(uint64_t* input, uint64_t* number_of_zeros, const uint64_t length) {
+    //input has to be from conver_str_to_u64 or from this function itself
+    //this returns the rest of the division by 2^32
+    //because numbers in input can *only* be 9 digits long, they'll always be less then 2^32 ;
+    uint64_t division, rest = 0;
+	for (uint64_t i = (*number_of_zeros); i < length; i++) {
+		rest *= 1000000000; //10^9
+        rest += input[i]; //10^9*rest + input[i]
+        division = rest / 4294967296;
+        rest %= 4294967296;
+		input[i] = division;
+		if (i == (*number_of_zeros) && input[i] == 0) {
+			(*number_of_zeros)++;
+		}
+	}
+    return rest;
+}
+
+Number parse_base10_str(const char* Input)
+{
+    uint64_t length_ = strlen(Input);
+    char* final_variable = (char*)calloc(length_ + 1, 1);
+    if (final_variable == NULL) {
+        PanickError("Allocation of final_variable in function parse_base10_str failed");
+        printf("Ending programm...\n");
+        exit(0x10001); //failed allocation
+    }
+
+    memcpy(final_variable, Input, length_); //strcpy seems to have issues
+
+    uint64_t number_of_zeros = 0; //counts zeros from the left
+	uint64_t Number_length = (length_ * 1000) / 9633 + 1; //length of r
+
+	uint64_t* new_input = convert_str_to_u64(final_variable, &length_);
+    if (new_input == NULL) {
+        PanickError("string given to parse_base10_str hasn't right format");
+        return { NULL,0, false }; //returns empty Number
+    }
+	Number r = Create_Number(Number_length); //creating Number
+    if (r.Value == NULL) {
+		//checking if allocation worked
+		PanickError("Allocation of r in function parse_base10_str failed");
+		printf("Ending programm...\n");
+		exit(0x10001);
+    }
+
+    uint64_t pointer = 1;
+
+	while (number_of_zeros != length_) {
+		uint64_t rest = divide_string_by_2power32(new_input, &number_of_zeros, length_);
+		r.Value[r.length - pointer] = rest;
+		pointer++;
+        //easy and clean, just how everyone likes it
+	}
+	//removes useless 0s at the left of r
+	Check_for_useless_zero(&r);
+	free(final_variable);
+	free(new_input);
+	return r;
+}
+
+/* ----------------------------------------------- */
+
+//First version : have an optimized way of parsing 9 characters, and using that to form our number
+
+void massive_test(uint64_t from, uint64_t number_) {
+    char* a = (char*)"1999999999973237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323299112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173212173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217321437795444333232267232064032323221321636247693232114904247290516526023211256200695622424124436324213203237722261570591329955603235220915325247153520522327230236039067143227109044751334732955434432303205355476795969301371123640339316490939019966713931322254677199432927107345623200562321623226122967327063324327260463223763007365322355353249934325953159324029275232790232106659595053327174591332932933733700349557010112632069637333239735929420732965774713332547512309539666640156301320955440579041232532900516626069543792424732701167142942324920432232954643323276553262513201323200671110923223273414947325631254509411579275327116936766532742932060320099552069613322915329242323639732099915300344932339740532029322501319496109153229359201034932734217651702323794323316746545661633247323241342746600555932327230225154099717941494300532732794373234032132519532711233217007750032050273206059632432732015303323323612690310326931553949023203919663162220294632295159349257402942127324360632019553909103200275141313117321033732016003232010456192117707131332321336321294651520246216760056492713232325132321223142172640325259302953242273212296322212265432670754714132973039232931320323259097771140632934932676465194706571964332372056261117790713259255773532734132199532563261327395023214796100932113700527266327326396675250920760325532649079327912044032094511442631594791613132433215705632043049406597494544753233334623969362321632905644232932666332232567132620327234304132526750016326203297932076111320329676793916264162172749259933241233232511760761659142340716641657663699325954707096424597623222974731432064943232232932323203477704635046603077059095742709406424102323257466232692032374323719011202455322641905465793217610921453246623667563235325359645425327966327103260320250990367613605321705515333536743232323300173251297995901041475332514107520954943205446476201479559345559177433235363212017919566532324146622323279327512732769532539309325250554765940056030394493711167747173444160169537127037397309079604032727739624146732394902491217136765114903743355125565171712205529243652413615132976017329023243294562463261129443203203290932760427179202316207150529907255020242246549032660190097179230213697032932657559043054663050964544967414393322423249715327943453293294532432432644325591296501515432923231532556405705327325563263276326650916753243262479634267909039223424077313236424927370417310735025499561902042365492432374329993406321433332532195661114013620194003273319147134326703207732610227744214204595965332707773695412520205659137599455204941011023735346003232139321135964262321452957403203216353225055132329765505577546632451111323232049932457750329322923250766655793639173245320151500113201265324002205979232032600325920692636939006272234371676903256909679505513291906311615060773233605601940573232032116313231220433602273243200060173227565532339330211262244055329152327069177299737111616296323239915731154132266510329446924110164132426719632735977593204671691169304950332633204261131506277123324049232645631437573373170463713607096937335432633257327324465676056603447029047617765320621671114769329756511316314423563274124520111149932523466632750972732920727661540729063229276032329013663723052232295321433226642652260943264453266565601321325673232907223274532732332599151322044420656505133232632323616093256497210400410566755432400066616175322979304332113293253211592325063255017601375316134322675332032595103293215563232357924439093573299650413602190573265443232406015709103603161716725509752929940533259673263319167427359910972047212571656732593220591932132612045331422917209573235432432732459735467376540032976323270970321252722627329342299946132943619623215327420093232010035621194476732563621732959535324507955323613277016913267529132571501260269624732976131575000797070300751907466326514320732432770967326123143230300932614327110934425525322070322324321325313932357269674722322409604753637793950603500932664224292637147923292563555500732323796132513292375659913225940727234747494223262621267116246301276132232574591562022103321323710196727754940732593031171232777493249363213176641491922102203396079537323203255632632414305521666321329644294266303265301543217509701713596932166155422321353242140319523637553270732344331324233732495432117342954597137909451113697732624259656332559323256743210912322014390361403432452933215625662703224905664732992240546210341367451795006146430367332113573226770235194932064710370360359533214316332730017104737329236676323239356359113040025603200261455907650761454276532431577973247613232237056944669032232613543590713253601326670143320549779746393247623402732761049400241000661019764596091440195263241161753245217964520143253315593352323141096293232031665293250690156326007431345026610324012232054306969514779732152964132004403203732253671702911325990532524039670931323732412665323232920643295232074464679217929959255644932251115736321661179731694367534417626709339545149944720224044293232077221663233250452150727541463327327619329326703999996060427319391325207753233269113220363296659109326325532213261632416312011203797129932910513234073494969074332963241432296355603153545133402332632329295225563276320071344932795369327394079631775523519325429504503262532224553376707694561679406322155402253293403043213230093232755522993232375675032122915419014153243275072944304315413426115329037052553712352742549726923259747722353123250534614174961730513624353239911903241167536170090609606320620132733206366296299962013294607320497535526375327995753";//input, put any number you want (base 10)
+    char* b = (char*)"530076667076000964011329323245327256901577969676597266941653276232369920463210641274914372470321031193032324310923132763269532327624090115324524157632321650251710969207014132353246753290326773491457372944954420653214133232944299417321132160325360332944323049362663232320559322633901636703325796075593234721325032112446072914637755546746326469712524324132059015322231324645432025546012551352340596756211320657705325649617315326444325445627162276241331701219461532563693560324305505577323446323197304593790359653201500120354332033966275954365593077532032325232032151325557110665652903203953205591350053205090269320325391797202622329650922332601393321353327232346013232232255232452555332532046679291071541753247366127111343269626305212102603362474320651499725164493132760706033757639032275170104253245505263320305940293323252779043329541022216323277752327103323195031954937650495733253277671326497396732132320911524353263231757323913232632323239973295336354221294533960633260036432069222537003991420099321492362139463247332540441320327615153279313292017741617354443193019641211323039426547014973242426322634119011013765756432202963221704323717632132107329654465244242136323213553320700197602142321932544432935579632453233633219322135732690324454236764703393212327126656777672717347660613291260136357607715007136957372006932032567503260717325090120354204923793100617427997712326997473232032220603272410532921549323274032432321932323251932915767125216372324542532477932796627017599063324451792413263203557546233263604322932553130203532632321593145720794076151694120274253406331220320332320754609094120732697139623232506322500220033232532065744713016232546631009093752970691332121402212323215355554632369203967740321005240161334126172244904639991465771714260253169322972709799002916679573249479732323232074251129363462076493759766353232576010227441245342005329503329131920533541232599696054172431151363255043202252043976645444963272707909236501532033255132141326799427054736347532035732202322322674322794913437910463249939327326315324591953377501302432364164094144192432173593232505922262324972323993293732796343232563325232632996421531532550920796115446270972275416294069136039621663232013233253297632632529463172243210004530323732206222323246320015327325927172033426432103209909732222929361432371402013440322402332632543253950421370975643223322425452132322732320973632654415593260526066327321561603232799223326352547332532503296047003232143706321632560401641939143450012732004253716719770735650422040019036279533327732372324426465532323322946646650714326671370147644327047432675323731632655057002907606323606704290445715905764473332165276397324369337732216773250477736030324122599244204550331033229220326009127675123232257413417673075932326011723235502511414941622631595704732132137107461392123434594674321571332323201324047453299112200040957305757529247507325065663259310097223299443032149323022663333256532792390221326932113231324991264513243269003255936102224999327432126237532132213245160523279453247730053232557936235332675117639496067659423263402902291279663217239534736413323209723277055294912121326190321534642017462310974134907699262430567652333662636252926900769610619324351924033717432307192776032793359305121906957577236215009323232324676316653912932734947203754390332663263230022933299919312779577422316095326329323270326079249913736226260463793003356633326132751232573204672295293659356973016533313267320407620570969291614750932415214763296924579435405632325029666775049425010129932913201202717324092329919177976705302709155045631777763257100534329294553310143929073520503069141173221570125936566616433057350532265169192464636923366909096103232732707031421653390201962223269263254670094350743255322376307215324643513730632126011621649376430956054035303710632943452577656334454491323953756016513277021569664329301113323273297325232330921636962665771546595620433629235343217173496665131995639325713725446461027323272966943259039600513259407667215032514173220913433214932924549099996326326331302067303215300745147766440132769432917924032444193264320572763966332323325430153232335123223225325653265013253297321993213032165503265421654309335252634341332932032323912992969131324433243250367745703250423209200153397924326232670320391259914320523649323050632563213243053237057952630214104293671553253923216720449321333203370376265221446947144990356329207703204593202422917457053220260414513247055776201213765929320103132062654660103710626393903901445640505160323324636742329415465537742206653212231723206316302554326600433140795751274294693973229541032329513426316260966735793146230763732073214220545977601191644603676513267310592071774127542503456032521415209309122945737296504135656297963111052041236069432710322933330320253401705479940009601450245773267302137927246721911216175732610273266061561432913219320963227132732916169550415241353732577566122132250397304343253274443635141725232394660932324126965577269532749324619902171605266373246432161920924134070329732201454206364695606041595501400103969369261264923761734793244224329435325611691440757543276563279062632764632323252169132532093272333032012632799355909355274327329320650563227710923064214150641270250355035326624773243532420597746031774370325291001323272176307162261290925611157309331779297074724953256771914374266631014360647667440001704229169242229320574392665360651327932997252273299250705947495490193253732694264361149732232944360671364732923215102045062032400632473245652750311321639323104361325063270432397463132635734664337905219475563694150357569691449429593203030571324017347361623671277323231762394322320490737320600766325136190425357323322325071606993213232032771503477250542232620307715773213106049717151674961019053154200453253232323532533294499126744576645632276226475527220422624327023222691632173010326516792737633232792505511167132163253591323919243960606471332729031064746460732260037903122226606111364966026743353403594323455732321567732413159932532064940459332949726556360320214363254296325321341270965605676327325325020434325047503253250659744293441653221767922252724501626632632055562167547934371706136742060951325014021994323209037276664114263693299171575033795326533263250322300427534160467323215953322061032329026545732133232917200042657635020019942105155231329750643641550425101454232131465653553227079453260750206341075143224405020634763232610549427513217593241321732003232072045042694560102503194032320756159190193223450662503032323213736067210217032626540545151124200702246050043232517326663955933449257130632932519321057347549456751504705299567324323292697450319143611329545152632512224323295323251322116060353266257952446176330063179327011405321076642732713239619330064233065357350391966593200504332456462072662903223269557072753115931203239379232191410311532211326034053325230406432323974770913959442063332966432326564757573256632042749757773212077733195732000142324293212070073097533417932344737927259757364744659351526350111332744675623332657096675302915327110040314112346943653950614740017422263322901093411304332334732235219732532329271210512532132419660713294221943202657329743669165923257321697953212534232309143210075232721563209263249104591732409616957523610574960302044105191000732463257015349756325672656113275904939914036656733129706713351500093209326126042970706223203245964234032132929761646169320764264323511320943267376131321997039275022739977329326324255712390455323269445177323221320122732309325379032037979467503460920973144739907470329433235323039167331743999059555614147713732966356002232959705322072393543132549051000693239523275332111732301594420203227603326321653363232327332527073210321479676497249264400524420326591935366506951632352056232432643293232447646144944900077425543239727169734637419373239703215719963217296999173235327273430199052002029421252213234100002002320732500126155099391100323100631266714366927623032326001130114043244563257532329316325121323202516674975036010555123590126513250024651795559326744323362732433264373932102413290602331072162326325613294406327326074176367656052277432451375764097245323563799552232225363635459229727370925394666610040932320460512426329569519146491737115432323264132450532345191619365665107324493032377522595326239632329756593232133209327103262505222071075694529532696473204295093379163003321223295363274477321333233275101633254994332091414930464616506977323396706716299262962233039323279619743207577732329107433292432422393669702217932321132327101694920439532177696326052707732343423033273249632055559101607447324973766232209121655643294029075329659236532932032066722254600756796297193233271366153230799011737477366031327037215532630696051132626671492470923260993221191627532479553232004201073475132261946324154771411194423259595664327320626623250771326772295501437716964142514207432326047619266332032710325011933235222157341793292720922716759130613201126360493201266297423320634732170335575260766994632132722121731432073323927691464720451617562033261023063271662322032663243232323260095666296692675977933095632632320303253144146264432165047759793326242097032153560674932095110900065632993740027005263327635936797965637932329625557926251273273216791937325173232032619533235429372455390254006032214732376111032136674327947912732717132911226303229029051322315355736729724526527704324332323533227323261241659329913532473242700452940053143296327993222619024732140029212932297323194553221620570769717926132477359670620362016364110232076579602963265324690271254131660323203232663203269520066322764446412043532735357134159205011603632532403232321231990441367230063245629764973295943219003924395654273205402935417646225317006123157552711021433211575740703527744443323199024373094750513255357967455325220129770193045733275373239044609191063666206417757124140544323244721762017139694017095325413279632732714690957396399322632300403294666721965343303230062134794632660547322343233369107137326506663232465326325795623732603632633232555654137661232545932932023621299910903273954125759532693714596241604950949717979323232795166749332932949490326400927791906473277245519560324232612151945560904233291340620744533233230551737112326161907032710932279796602327432327557254610132329263273327373263232947332253311132251074077274904333223363909431916766534647324232133201219527630566656997256115632326321236512179716144192329192714026325914009651323251441639261763264645649452673273773202931411672324512190432503912933459632704232324413274767165209573651132949959569273261950956975320930141503773725245045371374934293323370935107777377115532906325164234323105345093296452349555301311726611320059650325030375093263232665500932572645143209153712609917376930161460647766745342713603164161570320141766732453279014312432532177977011326923351327152932033421166329319324232210613299320017320535205599514329755743223252433230327230322432327320065262320563294559775379033260120320032320532761596165325032556714506343221041513299442960052230662715206293321130757614932633242252266151977146534771932734625605632552466532273260743255196049331152032012449929764640197013227444457914932327171450070455473265056132666033250167323040325409710999100992216351743245912149340405943243252574961259320323232132029121612505739396593500295324626099190632063494232227200693276647472143234723143153132320619196633279327466073453292332240614766054232693974412193243577632412475132366632136955675025026043209150371379675973113729077213262352306201732923222250443255321335415976932629395430374323214557639394313021696905049732566927446710034473770350909599733612232432632763232603223210306775133732601403533245653623101014213233259457075161493043231230470321524094457452095452734959409733402150321927232039326099553263720313744565993992647432705632050032323079595246332463234521613272329132771703326169399443215557500245323069653277543053346173262592032257476590122616267137196432220327324519144532222464394327590592291140113261632563245322304623320135350324795751413350220309299305032037570266559373732623919069710060332564043776533323229229332799053240232229536324672032504221326992407023293232704220076219709557941032553230954799940250602224042303222099320990645041617719325132723347537596637541795705517527311595054406046151153593295044145955232329172325545103219065265623310932671043299460363102672047037553942654979053273213241032077553327023324323407576452955692267326449526910675232321210517639702160740032735326329320736473225055010570457439040009320327632442055774795323323220643277272545747115373276759122614307322430723432226721312696050423263232992325075327324573220972376732944690932742953174419321730520471290322217320150032150626946332335136932116325323250579499749250114976994777503263732706436501960113420326646357561549674793956399326470943246432219146326341032303232065576217366970923794604367055913932590660940979159976326452243005729632630451267321150532064717761795732535132090626505332324774799596406520661513219132590675145597703223232323326005532166532167132174932570446741073920721105674326716324241791233432723325663232042157912032393703221674340430203263429193230032332492327217933236561491934321043232567263310521691713125444761732143357279700032332660449020217562921220323297067942420403729504053245103252307323036321632132595250327624179052636369403222321332033449141539991632072907433405035603252413267326525204475324290370047432323002401395979532992799794740049467643572323212432594132970274911917557263290177772532022260327129733202323165421327324922034541356960735705322479327327090632599621192514420632574276233632712193252303216347216656699532411912792450910322016332040409327310902672326240332220613275940243797220730139626205377423242426973294955740293793010322323032636367422320035020420354900312550932219325324253225932133204593235726541707543270327934007364375099424493259332057596632209269991461321515055224332613553320099492393434463162797212956444523210323296232725591424549432644125323476542307323003232632565931465456732441332133243225535709470347447329003532632293324369443412562733023272316072350164116032323267933232312250714324007133299223244073946101011675320793267019012912566043277121554696222993235159322923231326132369274692975419732729990659403942234731355952526231307676426643295403206726413263296594030112103703432732763543261932321139322165469116563231437321271375232462322353156925272425269673292429933293710043267347639799525321321251525732900202323294759402760323332197167329329549566321004299393714314632529769423921320732432116626650320279955691626321303253420457690790132206452649412611933213263232462639132666974732630220741694260932202326321932991435460133242555619465370267052102073292432779176600326903213163246353700214325323332673214573209032062762321573031509932532336559212327325201323397649511336436004044373532314559323663326229617126132042244120132397006496414965253230112754797112323253224671145205325320033323413935262919742303362025057527103713230573542771339541249331723054149773417611979529221194323999255565773253232499233777212532390322005439290046321695753326122157639217321195475623610677069103023340327711254329206363216294254673216726650172292143296633232325326379463716663307294463329465963474543230104393329073250469609100237326325220231130232101323122745432432556132329524464399472950229323334541625233263744100620790255471129456110332593254760325121766932045296615260147406723235120973560900341753227543203469244327332350795205567326729175932193241320132516756247473263259259325232625323267932031409957447114591325145671403253376707694561679406322155402253293403043213230093232755522993232375675032122915419014153243275072944304315413426115329037052553712352742549726923259747722353123250534614174961730513624353239911903241167536170090609606320620132733206366296299962013294607320497535526375327995753";
+    Number a_conv = parse_base10_str(a);
+    Number b_conv = parse_base10_str(b);
+    minimum_for_karatsuba = from;
+    Number d_conv;
+    timespec my_time = { 0, 0 };
+    timespec new_time = { 0, 0 };
+    long final_time;
+    long final_time_2;
+    FILE* F = fopen("massive_text.txt", "a+");
+    if (F == NULL) {
+        PanickError("file allocation failed, ending programm...");
+        exit(0x10002);
+    }
+    for (int i = 0; i < number_; i++) {
+        printf("number %u over %u\n", i + 1, number_);
+        timespec_get(&my_time, TIME_UTC);
+        d_conv = multiplication_Numbers(a_conv, b_conv);
+        timespec_get(&new_time, TIME_UTC);
+        final_time = new_time.tv_sec - my_time.tv_sec;
+        final_time_2 = new_time.tv_nsec - my_time.tv_nsec;
+        if (final_time_2 < 0) {
+            final_time -= 1;
+            final_time_2 += 1000000000;
+        }
+        fprintf(F, "{%ld.%09ld}\n", final_time, final_time_2);
+    }
+
+}
+
+
 int main()
 {
     if (CConsole) CreateConsoleWindow();
-    char a[16001] = "1999999999973237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173212173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173212173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173212173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173237892793289112173214377954443388267280640888218163624769328114904247290516526028112562006956224241244368421808377222615705918995560323522091585247153520522872302360390671482710904475133473295543448303205355476795969301371123640339316490939019966713931322254677199489271073456232005628162826122967870638432726046823763007365823553584993432595315984029275287902810665959505387174591332989337337003495570101126806963733839735929420789657747133854751230953966664015630180955440579041285890051662606954379242478701167142942849204828954643887655862518018800671110928287341494785631254509411579275871169367665874298060800995520696138291532924283639780999153003449833974058029825013194961091582935920103498734217651702837948331674654566163847884134274660055598872302251540997179414943005878794378340813251958711238170077500805027320605968487801530332383612690310869315539490280391966316222029468295159349257402942127843606801955390910800275141313117810337801600880104561921177071313881336812946515202462167600564927188851881223142172640852593029584227812296822122654326707547141897303928931320885909777114063293498676465194706571964383720562611177907185925577358734181995856861873950232147961009811370052726687863966752509207608558649079879120440809451144263159479161318438157056804304940659749454475833334623969362816329056442898666382856718620872343041852675001686208979807611180896767939162641621727492599384123885117607616591423407166416576636998595470709642459762822974731480649488232988803477704635046603077059095742709406424102885746628692083748371901120245582641905465798176109214584662366756835853596454258796632710860802509903676136058170551533353674888330017851297995901041475385141075209549480544647620147955934555917743835368120179195665884146622887987512787695853930985250554765940056030394493711167747173444160169537127037397309079604087277396241467839490249121713676511490374335512556517171220552924365241361518976017890232489456246861129448032089098760427179202316207150529907255020242246549086601900971792302136970898657559043054663050964544967414393824232497158794345898945324843264485591296501515489283158556405705878556868768665091675848624796342679090392234240773183642492737041731073502549956190204236549248374899934068143338581956611140136201940087331914713486708077861022774421420459596538707773695412520205659137599455204941011023735346008813981135964262814529574080816358250551889765505577546684511118880499324577508982928507666557936391784580151500118012658400220597928086008592069263693900627223437167690856909679505518919063116150607783360560194057880811631831220433602278480006017827565583393302112622440558915287069177299737111616296883991573115418266510894469241101641842671968735977598046716911693049503863804261131506277123840492864563143757337317046371360709693733548638578784465676056603447029047617765806216711147698975651131631442356874124520111149985234666875097278920727661540729068292760889013663723052282958143826642652260948644586656560181856732890722874587838599151820444206565051388688361609856497210400410566755484000666161758297930438118985321159285063255017601375316134826753320325951089815568835792443909357899650413602190578654488406015709103603161716725509752929940538596786331916742735991097204721257165678598205919818612045331422917209573235484878459735467376540089768870970812527226278934229994618943619628158742009880100356211944767856362178959535845079558361877016918675291857150126026962478976131575000797070300751907466865148078487709678612314830300986148711093442552582070828432185313983572696747228240960475363779395060350098664224292637147928925635555007883796185189237565991825940727234747494223262621267116246301276182857459156202210381837101967277549407859303117128777498493681317664149192210220339607953788085568684143055216668189644294266308653015481750970171359698166155422321353242140319523637558707834433184233784954811734295459713790945111369778624259656385593285674810912820143903614034845293815625662708249056647899224054621034136745179500614643036738113578267702351949806471037036035953814316387300171047378923667683239356359113040025608002614559076507614542765324315779784761882370569446690828613543590718536018667014380549779746398476234027876104940024100066101976459609144019526841161758452179645201485331559335283141096298803166529325069015686007431345026610324012232054306969514779781529641800440803732253671702911859905852403967093132378412665888920648952807446467921792995925564498251115736816611797316943675344176267093395451499447202240442988077221668385045215072754146387876198986703999996060427319391852077583869118203689665910932685582186168416312011203797129989105183407349496907438968414829635560315354513340238683292952255687680071344987953698739407963177552351985429504508625822455337670769456167940682155402258934030481830098875552299883756750812291541901415848750729443043154134261158903705255371235274254972692859747722353128505346141749617305136243583991190841167536170090609606806201873806366296299962018946078049753552637587995753";//input, put any number you want (base 10)
-    char b[16001] = "5300766670760009640118988458725690157796967659726694165876283699204681064127491437247081031193088431092318768695887624090115845241576832165025171096920701418358467589086773491457372944954420658141388944299417811816085360389448304936266888055982633901636703857960755983472185081124460729146377555467468646971252432418059015822318464548025546012551352340596756211806577058564961731586444854456271622762413317012194615856369356084305505577834468319730459379035965801500120354380339662759543655930775808852320815185557110665652903203958055913500580509026980853917972809017034982054266507761121307875714092464657563038146685954598630084761512199123184442252593597734122490519680448750624783662754748899422350672119069763124399160137177521590314669551828990608525277475179409632071433465150932374435885278385298581248120222711278974822219260043735526587607096395562646594137859285351850048894439566623335868689295097230923992296007595017242980834843897621383935848718934505302968358299376436585127597639285982086461752587717112238065100952994711624353623691791918842940512958661926099634659556745562199144663078228569152612554707549148128881351182970637206776591849720360767595942238174526926764035944421015535131585109048086426701170380527389060703378990565674616961339720993558561173283143074213388741897501398319325713192926457471134925264020456280284592826711032510575035973923500270805239310741255622286187037012096248979893399959382492910141291558652812667866549358419262633521917054655067356482988836197803529702622896509223860139381353872834601882825528452555385804667929107154175847366127111348696263052121026033624743206514997251644931876070603375763908275170104258455052638030594029388527790438954102221688777528710383195031954937650495738587767186497396781880911524353268317578391886888399789533635422129453396063860036480692225370039914200998149236213946847385404418087615158793189201774161735444319301964121183039426547014978424268263411901101376575648202968217048371768181078965446524424213688135538070019760214281985444893557968453233633219821357869084454236764703393212871266567776727173476606132912601363576077150071369573720069808567508607178509012035420492379310061742799771286997478808220608724105892154988740843232198885198915767125216372845425847798796627017599063844517924186803557546238636048298553130203586881593145720794076151694120274253406331220803880754609094120786971396288506825002200388580657447130162854663100909375297069138121402212832153555546836920396774081005240161334126172244904639991465771714260253169829727097990029166795784947978888074251129363462076493759766358857601022744124534200589503891319205335412859969605417243115136325504802252043976645444968727079092365015803855181418679942705473634758035782028282674827949134379104684993987863158459195337750130248364164094144192481735988505922262849723239989378796348856385286899642153158550920796115446270972275416294069136039621668801838589768685294631722432100045308378206222884632001587859271720334264810809909782229293614837140201344082402386325485395042137097564823824254521882788097368654415598605260668781561608879922386352547385850896047008814370681685604016419391434500127320042537167197707356504220400190362795338778372844264655883829466466507148667137014764487047486758373168655057002907606836067042904457159057644733816527639784369337782167785047773603084122599244204550331038292208600912767512882574134176730759832601172835502511414941622631595704781813710746139212343459467481571332880184047458991122000409573057575292475078506566325931009722899443081498302266333856532792390221326932118318499126451848690085593610222499987481262375818218451605287945847730058855793623538675117639496067659428634029022912796681723953473641388097287705529491212186190815346420174623109741349076992624305676523336626362529269007696106198435192403371748307192776087933593051219069575772362150098328846763166539129873494720375439038668683002293899919312779577422316095868988708607924991373622626046379300335663386187512857804672295293659356973016533318673204076205709692916147509841521476896924579435405688502966677504942501012998918012027173240928991917797670530270915504563177776857100534892945533101439290735205030691411782157012593656661643305735058265169192464636923366909096108878707031421653390201962228692685467009435074855823763072158464351373068126011621649376430956054035303710689434525776563344544918395375601651877021569664893011138878978528330921636962665771546595620433629235348171734966651319956398571372544646102788729669485903960051859407667215085141782091343814989245490999968686331302067308153007451477664401876948917924084441986480572763966388385430158833512828258565865018589781998130816550865421654309335252634341389808839129929691318443848503677457085042809200153397924862867080391259914805236498305068568184305837057952630214104293671558539281672044981333203370376265221446947144990356892077080459802422917457058202604145184705577620121376592980103132062654660103710626393903901445640505160838463674289415465537742206658122317280631630255486600433140795751274294693973229541088951342631626096673579314623076378078142205459776011916446036765186731059207177412754250345608521415209309122945737296504135656297963111052041236069432710829333308025340170547994000960145024577867302137927246721911216175786102786606156148918198096827187891616955041524135378577566122182503973043485874443635141725283946609884126965577269587498461990217160526637846432161920924134070897820145420636469560604159550140010396936926126492376173479844224894358561169144075754876568790626876468328521691858098723330801263279935590935527487898065056827710923064214150641270250355035866247784358420597746031774370852910018872176307162261290925611157309331779297074724958567719143742666310143606476674400017042291692422298057439266536065187989972522789925070594749549019853786942643611497828944360671364789281510204506208400684784565275031181639323104361850687048397463186357346643379052194755636941503575696914494295980303057184017347361623671277883176239482804907378060076685136190425357838285071606998188087715034772505422862030771577813106049717151674961019053154200458588835853329449912674457664568276226475527220422624870282269168173010865167927376388792505511167181685359132391924396060647138729031064746460782600379031222266061113649660267433534035948345578815677841315998580649404593329497265563608021436854296858134127096560567687858502043485047508585065974429344165821767922252724501626686805556216754793437170613674206095185014021994328090372766641142636989917157503379586538685082300427534160467881595382061032890265457813889172000426576350200199421051552318975064364155042510145428131465653558270794586075020634107514824405020634768326105494275181759841817800832072045042694560102503194088075615919019823450662503088813736067210217086265405451511242007022460500488517866639559334492571306898519810573475494567515047052995678488926974503191436118954515268512224889588513221160603532662579524461763300631798701140581076642732718396193300642330653573503919665980050438456462072662908286955707275311593120323937923219141031158211860340538523040648839747709139594420633896648865647575785668042749757778120777331957800014284298120700730975334179834473792725975736474465935152635011138744675623386570966753029158711004031411234694365395061474001742226382901093411304383347823521978588927121051258132419660718942219480265789743669165928578169795812534283091481007528721568092684910459178409616957523610574960302044105191000784685701534975685672656118759049399140366567331297067133515000980986126042970706228084596423408189297616461698076426483511809486737613181997039275022739977898684255712390455886944517788218012278309853790803797946750346092097314473990747089438358303916733174399905955561414771373296635600228959705820723935431854905100069839528753811178301594420208276038681653368887385270781081479676497249264400524420865919353665069516835205628486489884476461449449000774255483972716973463741937839708157199681729699917835872734301990520020294212522183410000200280785001261550993911008310063126671436692762308860011301140484456857583293168512188025166749750360105551235901265185002465179555986744833627843864373981024189060233107216286856132944068786074176367656052277484513757640972458356379955228225363635459229727370925394666610040988046051242632956951914649173711548886413245058345191619365665107844930837752259586239688975659881380987108625052220710756945295869647804295093379163003812289536874477813383875101638549943809141493046461650697783396706716299262962233039887961974807577788910743892484223936697022179832118871016949204395321776968605270778343423038784968055559101607447849737662820912165564894029075896592365898080667222546007567962971983871366158307990117374773660318703721553263069605118626671492470923260998211916275847955880042010734751322619468415477141119442859595664878062662850771867722955014377169641425142074886047619266380871032501193835222157341798927209227167591306180112636049801266297423806347817033557526076699468187221217314807383927691464720451617562038610230687166282086684888860095666296692675977933095686880308531441462644816504775979386242097081535606749809511090006568993740027005263327635936797965637988962555792625127327816791937851788032619538354293724553902540060322147837611108136674327947912787171891122630829029051823153557367297245265277048438835382788612416598991358478427004529400531432968799822619024781400292129829783194558216205707697179261847735967062036201636411028076579602968658469027125413166088088668086952006682764446412043587353571341592050116036858408881231990441367230068456297649732959481900392439565427805402935417646225317006123157552711021438115757407035277444438319902437309475051855357967455852201297701930457387537839044609191063666206417757124140544884472176201713969401709585418796878714690957396399826830040894666721965343308300621347946866054782348333691071378650666884658685795623786036863885556541376612854598980236212999109087395412575958693714596241604950949717979888795166749389894949086400927791906478772455195608428612151945560904238913406207445383830551737112861619070871098279796602874887557254610188926873873786889473825331118251074077274904333223363909431916766534647324281332012195276305666569972561156886812365121797161441928919271402685914009651885144163926176864645649452678737780293141167284512190485039129334596870428844187476716520957365118949959569273261950956975809301415037737252450453713749342933233709351077773771155890685164234831053450989645234955530131172661180059650850303750986886655009857264514809153712609917376930161460647766745342713603164161570320141766784587901431248581779770118692335187152980334211668931984282106132993200178053520559951489755748285243830872308248878006526232056894559775379038601208008805876159616585085567145063432210415189944296005223066271520629381130757614986384225226615197714653477198734625605685524665827860748551960493311520801244992976464019701827444457914932871714500704554786505613266603850167830403254097109991009922163517484591214934040594848525749612598088813202912161250573939659350029532462609919068063494282272006987664747214834723143153188061919663879874660734589238240614766054286939744121984357768412475183666813695567502502604809150371379675973113729077218623523062017329282225044855813354159769862939543037488145576393943130216969050497856692744671003447377035090959973361223248687688603228103067751337860140353845653623101014218385945707516149304831230470815240944574520954527349594097334021508192728039860995586372031374456599399264748705680500883079595246384683452161872329187717038616939944815557500245830696587754305334617326259208257476590122616267137196482203278451914458222464394875905922911401186163256845823046238013535084795751413350220309299305080375702665593737326239190697100603856404377653383229229387990584028229536846720850422132699240702898870422007621970955794108558309547999402506022240423082209980990645041617719851872334753759663754179570551752731159505440604615115359895044145955288917285545108190652656233109867104899460363102672047037553942654979058781841080775538702384834075764529556922678644952691067528812105176397021607400327358689807364782505501057045743904000980876844205577479583882064877272545747115378767591226143078243072348226721312696050428632899285075878457820972376789446909874295317441981730520471290822178015008150626946383351369321168588505794997492501149769947775086378706436501960113420866463575615496747939563998647094846432219146863410830832065576217366970923794604367055913985906609409791599768645224300572968630451267811505806471776179578535180906265053832477479959640652066151819185906751455977082328838600558166581671817498570446741073920721105674867168424179123343272385668804215791208393703221674340430208634291983003233249287217938365614919348104885672633105216917131254447617321433572797000838660449020217562921220889706794242040372950405845108523078303681681859525087624179052636369408228138033449141539991680729074334050356085241867865252044758429037004748830024013959795899279979474004946764357288124859418970274911917557268901777725802226032712973802831654218784922034541356960735705824798787090632599621192514420685742762336871219852308163472166566995841191279245091082016380404098731090267286240382206187594024379722073013962620537742324242697894955740293793010828303263636742280035020420354900312550982198584258259813804598357265417075487087934007364375099424498593805759668209269991461815150552243861355380099492393434463162797212956444528108896287255914245494864412583476542307830088685659314654567844138138482553570947034744732900358632293843694434125627330287231607235016411608328679388312250714840071389922844073946101011675807986701901291256604327712155469622299835159829283186132369274692975419787299906594039422347313559525262313076764266489540806726418689659403011210370348787635486198811398216546911656323143781271375284628235315692527242526967892429938937100486734763979952581812515257329002028894759402760833819716789895495668100429939371431468529769423921807848116626650802799556916268130853420457690790182064526494126119381868846263918666974786302207416942609820286819899143546013842555619465370267052102078924877917660086908131684635370021485833867814578090806276281573031509985833655921287852018339764951133643600404437358314559836638622961712618042244120183970064964149652583011275479711288582467114520585320033834139352629197423033620250575271037183057354277133954124933172305414977341761197952922119483999255565778588499233777212583908200543929004632169575386122157639217811954756236106770691030233403277112548920636816294254678167266501722921489663888586379463716663307294463894659634745483010439389078504696091002378685220231130281018312274548485561889524464399472950229833345416252386374410062079025547112945611038593254760851217669804529661526014740672835120973560900341758275480346924487383507952055678672917598198418018516756247478685925985286258326798031409957447114591851456714085337670769456167940682155402258934030481830098875552299883756750812291541901415848750729443043154134261158903705255371235274254972692859747722353128505346141749617305136243583991190841167536170090609606806201873806366296299962018946078049753552637587995753";
+    char* a = (char*)"1999999999973237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323299112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173212173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217323732927932329112173237329279323291121732373292793232911217321437795444333232267232064032323221321636247693232114904247290516526023211256200695622424124436324213203237722261570591329955603235220915325247153520522327230236039067143227109044751334732955434432303205355476795969301371123640339316490939019966713931322254677199432927107345623200562321623226122967327063324327260463223763007365322355353249934325953159324029275232790232106659595053327174591332932933733700349557010112632069637333239735929420732965774713332547512309539666640156301320955440579041232532900516626069543792424732701167142942324920432232954643323276553262513201323200671110923223273414947325631254509411579275327116936766532742932060320099552069613322915329242323639732099915300344932339740532029322501319496109153229359201034932734217651702323794323316746545661633247323241342746600555932327230225154099717941494300532732794373234032132519532711233217007750032050273206059632432732015303323323612690310326931553949023203919663162220294632295159349257402942127324360632019553909103200275141313117321033732016003232010456192117707131332321336321294651520246216760056492713232325132321223142172640325259302953242273212296322212265432670754714132973039232931320323259097771140632934932676465194706571964332372056261117790713259255773532734132199532563261327395023214796100932113700527266327326396675250920760325532649079327912044032094511442631594791613132433215705632043049406597494544753233334623969362321632905644232932666332232567132620327234304132526750016326203297932076111320329676793916264162172749259933241233232511760761659142340716641657663699325954707096424597623222974731432064943232232932323203477704635046603077059095742709406424102323257466232692032374323719011202455322641905465793217610921453246623667563235325359645425327966327103260320250990367613605321705515333536743232323300173251297995901041475332514107520954943205446476201479559345559177433235363212017919566532324146622323279327512732769532539309325250554765940056030394493711167747173444160169537127037397309079604032727739624146732394902491217136765114903743355125565171712205529243652413615132976017329023243294562463261129443203203290932760427179202316207150529907255020242246549032660190097179230213697032932657559043054663050964544967414393322423249715327943453293294532432432644325591296501515432923231532556405705327325563263276326650916753243262479634267909039223424077313236424927370417310735025499561902042365492432374329993406321433332532195661114013620194003273319147134326703207732610227744214204595965332707773695412520205659137599455204941011023735346003232139321135964262321452957403203216353225055132329765505577546632451111323232049932457750329322923250766655793639173245320151500113201265324002205979232032600325920692636939006272234371676903256909679505513291906311615060773233605601940573232032116313231220433602273243200060173227565532339330211262244055329152327069177299737111616296323239915731154132266510329446924110164132426719632735977593204671691169304950332633204261131506277123324049232645631437573373170463713607096937335432633257327324465676056603447029047617765320621671114769329756511316314423563274124520111149932523466632750972732920727661540729063229276032329013663723052232295321433226642652260943264453266565601321325673232907223274532732332599151322044420656505133232632323616093256497210400410566755432400066616175322979304332113293253211592325063255017601375316134322675332032595103293215563232357924439093573299650413602190573265443232406015709103603161716725509752929940533259673263319167427359910972047212571656732593220591932132612045331422917209573235432432732459735467376540032976323270970321252722627329342299946132943619623215327420093232010035621194476732563621732959535324507955323613277016913267529132571501260269624732976131575000797070300751907466326514320732432770967326123143230300932614327110934425525322070322324321325313932357269674722322409604753637793950603500932664224292637147923292563555500732323796132513292375659913225940727234747494223262621267116246301276132232574591562022103321323710196727754940732593031171232777493249363213176641491922102203396079537323203255632632414305521666321329644294266303265301543217509701713596932166155422321353242140319523637553270732344331324233732495432117342954597137909451113697732624259656332559323256743210912322014390361403432452933215625662703224905664732992240546210341367451795006146430367332113573226770235194932064710370360359533214316332730017104737329236676323239356359113040025603200261455907650761454276532431577973247613232237056944669032232613543590713253601326670143320549779746393247623402732761049400241000661019764596091440195263241161753245217964520143253315593352323141096293232031665293250690156326007431345026610324012232054306969514779732152964132004403203732253671702911325990532524039670931323732412665323232920643295232074464679217929959255644932251115736321661179731694367534417626709339545149944720224044293232077221663233250452150727541463327327619329326703999996060427319391325207753233269113220363296659109326325532213261632416312011203797129932910513234073494969074332963241432296355603153545133402332632329295225563276320071344932795369327394079631775523519325429504503262532224553376707694561679406322155402253293403043213230093232755522993232375675032122915419014153243275072944304315413426115329037052553712352742549726923259747722353123250534614174961730513624353239911903241167536170090609606320620132733206366296299962013294607320497535526375327995753";//input, put any number you want (base 10)
+    char* b = (char*)"5300766670760009640113293232453272569015779696765972669416532762323699204632106412749143724703210311930323243109231327632695323276240901153245241576323216502517109692070141323532467532903267734914573729449544206532141332329442994173211321603253603329443230493626632323205593226339016367033257960755932347213250321124460729146377555467463264697125243241320590153222313246454320255460125513523405967562113206577053256496173153264443254456271622762413317012194615325636935603243055055773234463231973045937903596532015001203543320339662759543655930775320323252320321513255571106656529032039532055913500532050902693203253917972026223296509223326013933213533272323460132322322552324525553325320466792910715417532473661271113432696263052121026033624743206514997251644931327607060337576390322751701042532455052633203059402933232527790433295410222163232777523271033231950319549376504957332532776713264973967321323209115243532632317573239132326323232399732953363542212945339606332600364320692225370039914200993214923621394632473325404413203276151532793132920177416173544431930196412113230394265470149732424263226341190110137657564322029632217043237176321321073296544652442421363232135533207001976021423219325444329355796324532336332193221357326903244542367647033932123271266567776727173476606132912601363576077150071369573720069320325675032607173250901203542049237931006174279977123269974732320322206032724105329215493232740324323219323232519329157671252163723245425324779327966270175990633244517924132632035575462332636043229325531302035326323215931457207940761516941202742534063312203203323207546090941207326971396232325063225002200332325320657447130162325466310090937529706913321214022123232153555546323692039677403210052401613341261722449046399914657717142602531693229727097990029166795732494797323232320742511293634620764937597663532325760102274412453420053295033291319205335412325996960541724311513632550432022520439766454449632727079092365015320332551321413267994270547363475320357322023223226743227949134379104632499393273263153245919533775013024323641640941441924321735932325059222623249723239932937327963432325633252326329964215315325509207961154462709722754162940691360396216632320132332532976326325294631722432100045303237322062223232463200153273259271720334264321032099097322229293614323714020134403224023326325432539504213709756432233224254521323227323209736326544155932605260663273215616032327992233263525473325325032960470032321437063216325604016419391434500127320042537167197707356504220400190362795333277323723244264655323233229466466507143266713701476443270474326753237316326550570029076063236067042904457159057644733321652763973243693377322167732504777360303241225992442045503310332292203260091276751232322574134176730759323260117232355025114149416226315957047321321371074613921234345946743215713323232013240474532991122000409573057575292475073250656632593100972232994430321493230226633332565327923902213269321132313249912645132432690032559361022249993274321262375321322132451605232794532477300532325579362353326751176394960676594232634029022912796632172395347364133232097232770552949121213261903215346420174623109741349076992624305676523336626362529269007696106193243519240337174323071927760327933593051219069575772362150093232323246763166539129327349472037543903326632632300229332999193127795774223160953263293232703260792499137362262604637930033566333261327512325732046722952936593569730165333132673204076205709692916147509324152147632969245794354056323250296667750494250101299329132012027173240923299191779767053027091550456317777632571005343292945533101439290735205030691411732215701259365666164330573505322651691924646369233669090961032327327070314216533902019622232692632546700943507432553223763072153246435137306321260116216493764309560540353037106329434525776563344544913239537560165132770215696643293011133232732973252323309216369626657715465956204336292353432171734966651319956393257137254464610273232729669432590396005132594076672150325141732209134332149329245490999963263263313020673032153007451477664401327694329179240324441932643205727639663323233254301532323351232232253256532650132532973219932130321655032654216543093352526343413329320323239129929691313244332432503677457032504232092001533979243262326703203912599143205236493230506325632132430532370579526302141042936715532539232167204493213332033703762652214469471449903563292077032045932024229174570532202604145132470557762012137659293201031320626546601037106263939039014456405051603233246367423294154655377422066532122317232063163025543266004331407957512742946939732295410323295134263162609667357931462307637320732142205459776011916446036765132673105920717741275425034560325214152093091229457372965041356562979631110520412360694327103229333303202534017054799400096014502457732673021379272467219112161757326102732660615614329132193209632271327329161695504152413537325775661221322503973043432532744436351417252323946609323241269655772695327493246199021716052663732464321619209241340703297322014542063646956060415955014001039693692612649237617347932442243294353256116914407575432765632790626327646323232521691325320932723330320126327993559093552743273293206505632277109230642141506412702503550353266247732435324205977460317743703252910013232721763071622612909256111573093317792970747249532567719143742666310143606476674400017042291692422293205743926653606513279329972522732992507059474954901932537326942643611497322329443606713647329232151020450620324006324732456527503113216393231043613250632704323974631326357346643379052194755636941503575696914494295932030305713240173473616236712773232317623943223204907373206007663251361904253573233223250716069932132320327715034772505422326203077157732131060497171516749610190531542004532532323235325332944991267445766456322762264755272204226243270232226916321730103265167927376332327925055111671321632535913239192439606064713327290310647464607322600379031222266061113649660267433534035943234557323215677324131599325320649404593329497265563603202143632542963253213412709656056763273253250204343250475032532506597442934416532217679222527245016266326320555621675479343717061367420609513250140219943232090372766641142636932991715750337953265332632503223004275341604673232159533220610323290265457321332329172000426576350200199421051552313297506436415504251014542321314656535532270794532607502063410751432244050206347632326105494275132175932413217320032320720450426945601025031940323207561591901932234506625030323232137360672102170326265405451511242007022460500432325173266639559334492571306329325193210573475494567515047052995673243232926974503191436113295451526325122243232953232513221160603532662579524461763300631793270114053210766427327132396193300642330653573503919665932005043324564620726629032232695570727531159312032393792321914103115322113260340533252304064323239747709139594420633329664323265647575732566320427497577732120777331957320001423242932120700730975334179323447379272597573647446593515263501113327446756233326570966753029153271100403141123469436539506147400174222633229010934113043323347322352197325323292712105125321324196607132942219432026573297436691659232573216979532125342323091432100752327215632092632491045917324096169575236105749603020441051910007324632570153497563256726561132759049399140366567331297067133515000932093261260429707062232032459642340321329297616461693207642643235113209432673761313219970392750227399773293263242557123904553232694451773232213201227323093253790320379794675034609209731447399074703294332353230391673317439990595556141477137329663560022329597053220723935431325490510006932395232753321117323015944202032276033263216533632323273325270732103214796764972492644005244203265919353665069516323520562324326432932324476461449449000774255432397271697346374193732397032157199632172969991732353272734301990520020294212522132341000020023207325001261550993911003231006312667143669276230323260011301140432445632575323293163251213232025166749750360105551235901265132500246517955593267443233627324332643739321024132906023310721623263256132944063273260741763676560522774324513757640972453235637995522322253636354592297273709253946666100409323204605124263295695191464917371154323232641324505323451916193656651073244930323775225953262396323297565932321332093271032625052220710756945295326964732042950933791630033212232953632744773213332332751016332549943320914149304646165069773233967067162992629622330393232796197432075777323291074332924324223936697022179323211323271016949204395321776963260527077323434230332732496320555591016074473249737662322091216556432940290753296592365329320320667222546007567962971932332713661532307990117374773660313270372155326306960511326266714924709232609932211916275324795532320042010734751322619463241547714111944232595956643273206266232507713267722955014377169641425142074323260476192663320327103250119332352221573417932927209227167591306132011263604932012662974233206347321703355752607669946321327221217314320733239276914647204516175620332610230632716623220326632432323232600956662966926759779330956326323203032531441462644321650477597933262420970321535606749320951109000656329937400270052633276359367979656379323296255579262512732732167919373251732320326195332354293724553902540060322147323761110321366743279479127327171329112263032290290513223153557367297245265277043243323235332273232612416593299135324732427004529400531432963279932226190247321400292129322973231945532216205707697179261324773596706203620163641102320765796029632653246902712541316603232032326632032695200663227644464120435327353571341592050116036325324032323212319904413672300632456297649732959432190039243956542732054029354176462253170061231575527110214332115757407035277444433231990243730947505132553579674553252201297701930457332753732390446091910636662064177571241405443232447217620171396940170953254132796327327146909573963993226323004032946667219653433032300621347946326605473223432333691071373265066632324653263257956237326036326332325556541376612325459329320236212999109032739541257595326937145962416049509497179793232327951667493329329494903264009277919064732772455195603242326121519455609042332913406207445332332305517371123261619070327109322797966023274323275572546101323292632733273732632329473322533111322510740772749043332233639094319167665346473242321332012195276305666569972561156323263212365121797161441923291927140263259140096513232514416392617632646456494526732737732029314116723245121904325039129334596327042323244132747671652095736511329499595692732619509569753209301415037737252450453713749342933233709351077773771155329063251642343231053450932964523495553013117266113200596503250303750932632326655009325726451432091537126099173769301614606477667453427136031641615703201417667324532790143124325321779770113269233513271529320334211663293193242322106132993200173205352055995143297557432232524332303272303224323273200652623205632945597753790332601203200323205327615961653250325567145063432210415132994429600522306627152062933211307576149326332422522661519771465347719327346256056325524665322732607432551960493311520320124499297646401970132274444579149323271714500704554732650561326660332501673230403254097109991009922163517432459121493404059432432525749612593203232321320291216125057393965935002953246260991906320634942322272006932766474721432347231431531323206191966332793274660734532923322406147660542326939744121932435776324124751323666321369556750250260432091503713796759731137290772132623523062017329232222504432553213354159769326293954303743232145576393943130216969050497325669274467100344737703509095997336122324326327632326032232103067751337326014035332456536231010142132332594570751614930432312304703215240944574520954527349594097334021503219272320393260995532637203137445659939926474327056320500323230795952463324632345216132723291327717033261693994432155575002453230696532775430533461732625920322574765901226162671371964322203273245191445322224643943275905922911401132616325632453223046233201353503247957514133502203092993050320375702665593737326239190697100603325640437765333232292293327990532402322295363246720325042213269924070232932327042200762197095579410325532309547999402506022240423032220993209906450416177193251327233475375966375417957055175273115950544060461511535932950441459552323291723255451032190652656233109326710432994603631026720470375539426549790532732132410320775533270233243234075764529556922673264495269106752323212105176397021607400327353263293207364732250550105704574390400093203276324420557747953233232206432772725457471153732767591226143073224307234322267213126960504232632329923250753273245732209723767329446909327429531744193217305204712903222173201500321506269463323351369321163253232505794997492501149769947775032637327064365019601134203266463575615496747939563993264709432464322191463263410323032320655762173669709237946043670559139325906609409791599763264522430057296326304512673211505320647177617957325351320906265053323247747995964065206615132191325906751455977032232323233260055321665321671321749325704467410739207211056743267163242417912334327233256632320421579120323937032216743404302032634291932300323324923272179332365614919343210432325672633105216917131254447617321433572797000323326604490202175629212203232970679424204037295040532451032523073230363216321325952503276241790526363694032223213320334491415399916320729074334050356032524132673265252044753242903700474323230024013959795329927997947400494676435723232124325941329702749119175572632901777725320222603271297332023231654213273249220345413569607357053224793273270906325996211925144206325742762336327121932523032163472166566995324119127924509103220163320404093273109026723262403322206132759402437972207301396262053774232424269732949557402937930103223230326363674223200350204203549003125509322193253242532259321332045932357265417075432703279340073643750994244932593320575966322092699914613215150552243326135533200994923934344631627972129564445232103232962327255914245494326441253234765423073230032326325659314654567324413321332432255357094703474473290035326322933243694434125627330232723160723501641160323232679332323122507143240071332992232440739461010116753207932670190129125660432771215546962229932351593229232313261323692746929754197327299906594039422347313559525262313076764266";
+    //char a[101] = "1234567890";
+    //char b[101] = "12345678901234567890";
+    timespec* total_time = (timespec*)calloc(2, sizeof(timespec));
+    timespec* parsing_time = (timespec*)calloc(2, sizeof(timespec));
+    
 
-    timespec my_time = { 0, 0 };
-    timespec new_time = {0, 0};
-    if (timespec_get(&my_time, TIME_UTC) == NULL) {
+    if (timespec_get(&total_time[0], TIME_UTC) == NULL) {
         exit(61);
     }
-    Number a_conv = parse_base10_str(a);
-    Number b_conv = parse_base10_str(b);
+	parsing_time[0] = total_time[0];
+    Number a_conv = parse_base10_str((const char*)a);
+    Number b_conv = parse_base10_str((const char*)b);
+	if (timespec_get(&parsing_time[1], TIME_UTC) == NULL) {
+		exit(62);
+	}
     char* a_str = number_to_base10_str(a_conv);
     char* b_str = number_to_base10_str(b_conv);
     Number c_conv = addition_Numbers(a_conv, b_conv);
@@ -702,27 +782,38 @@ int main()
     Number d_conv = multiplication_Numbers(a_conv, b_conv);
     char* d_str = number_to_base10_str(d_conv);
 
-    if (timespec_get(&new_time, TIME_UTC) == NULL) {
+    if (timespec_get(&total_time[1], TIME_UTC) == NULL) {
         exit(60);
     }
 
     //calcul du temps que ça à pris (simple soustraction)
-    long final_time = new_time.tv_sec-my_time.tv_sec ;
-    long final_time_2 = new_time.tv_nsec-my_time.tv_nsec;
+	long* final_total_time = (long*)calloc(2, sizeof(long));
+	final_total_time[0] = total_time[1].tv_sec - total_time[0].tv_sec;
+	final_total_time[1] = total_time[1].tv_nsec - total_time[0].tv_nsec;
+	if (final_total_time[1] < 0) {
+		final_total_time[0] -= 1;
+		final_total_time[1] += 1000000000;
+	}
+	long* final_parsing_time = (long*)calloc(2, sizeof(long));
+	final_parsing_time[0] = parsing_time[1].tv_sec - parsing_time[0].tv_sec;
+	final_parsing_time[1] = parsing_time[1].tv_nsec - parsing_time[0].tv_nsec;
+	if (final_parsing_time[1] < 0) {
+		final_parsing_time[0] -= 1;
+		final_parsing_time[1] += 1000000000;
+	}
     printf("nombre a base 10 : %s\n", a_str);
     printf("\n");
     printf("nombre b base 10 : %s\n", b_str);
     printf("\n");
-    printf("addition a+b : %s\n",c_str);
+    printf("addition a+b : %s\n", c_str);
     printf("\n");
     printf("test of multiplication : %s\n", d_str);
     printf("\n");
-    if (final_time_2 < 0) {
-        final_time -= 1;
-        final_time_2 += 1000000000 ;
-    }
-    printf("final_time : %ld.%09ld",final_time,final_time_2);
-    printf("\nin microseconds : %ld micro seconds", final_time * 1000000 + final_time_2 / 1000);
+    printf("final_time : %ld.%09ld", final_total_time[0], final_total_time[1]);
+    printf("\nin microseconds : %ld micro seconds\n", final_total_time[0] * 1000000 + final_total_time[1] / 1000);
+    printf("parsing time : %ld.%09ld", final_parsing_time[0], final_parsing_time[1]);
+    printf("\nin microseconds : %ld micro seconds", final_parsing_time[0] * 1000000 + final_parsing_time[1] / 1000);
+    //massive_test(25, 175);
     return 0;
 }
 
