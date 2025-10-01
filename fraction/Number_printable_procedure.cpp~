@@ -1,0 +1,105 @@
+/*
+** EPITECH PROJECT, 2025
+** big int
+** File description:
+** this file contains the function
+** to convert a number_t back into char *
+** it of course puts the - in case of negative
+*/
+
+#include "number_printable_dependencies.h"
+#include <malloc.h>
+#include <stddef.h>
+
+static void fill_string(char *str, uint64_t char_len, number_t *copy)
+{
+    uint64_t nb_zeros = 0;
+    uint64_t rest = 0;
+    uint64_t pointer = 0;
+    char contant[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+
+    while (nb_zeros != copy->length) {
+        for (uint64_t i = nb_zeros; i < copy->length; i++) {
+            rest *= 4294967296;
+            rest += copy->Value[i];
+            copy->Value[i] = rest / 1000000000;
+            nb_zeros += (i == nb_zeros && copy->Value[i] == 0);
+            rest = rest % 1000000000;
+        }
+        for (int j = 0; j < 9 && pointer < char_len; j++) {
+            str[char_len - pointer - 1] = contant[rest % 10];
+            rest /= 10;
+            pointer++;
+        }
+        rest = 0;
+    }
+}
+
+static void copy_strings(char **dest, const char *src, uint64_t length)
+{
+    int i = 0;
+
+    (*dest) = (char *)malloc(length * sizeof(char));
+    if ((*dest) == NULL)
+        return;
+    while (i < length) {
+        (*dest)[i] = src[i];
+        i++;
+    }
+}
+
+static char *handles_zero(char *str, uint64_t char_len, int sign)
+{
+    uint64_t nb_zero = 0;
+    char *returned;
+
+    while (str[nb_zero] == '0' && str[nb_zero] != '\0') {
+        nb_zero++;
+    }
+    printf("str : %s\n", str);
+    printf("nb_zero : %u\nchar_len : %d\n\n", nb_zero, char_len);
+    if (sign) {
+        str[nb_zero - 1] = '-';
+        copy_strings(&returned, str + nb_zero - 1, char_len - nb_zero + 1);
+    } else {
+        copy_strings(&returned, str + nb_zero, char_len - nb_zero);
+    }
+    return returned;
+}
+
+static void frees_all(number_t *Number, char *string)
+{
+    my_free_number(Number);
+    if (string == NULL) {
+        free(string);
+    }
+    return;
+}
+
+static void fill_w_zeros(char *str, uint64_t len)
+{
+    uint64_t i = 0;
+
+    while (i < len) {
+        str[i] = '0';
+        i++;
+    }
+}
+
+char *number_to_base10_str(number_t *Input)
+{
+    number_t copy = my_create_number(Input->length);
+    uint64_t char_len = (Input->length * 9633) / 1000 + 2;
+    char *returned = (char *)malloc(char_len * sizeof(char));
+    char *real_r;
+
+    if (copy.Value == NULL || returned == NULL) {
+        frees_all(&copy, returned);
+    }
+    my_memcpy(&copy, Input, 0);
+    fill_w_zeros(returned, char_len);
+    fill_string(returned, char_len, &copy);
+    real_r = handles_zero(returned, char_len, copy.sign);
+    frees_all(&copy, returned);
+    return real_r;
+}
