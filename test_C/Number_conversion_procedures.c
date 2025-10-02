@@ -63,6 +63,8 @@ static int is_invalid_string(const char *string)
 
     while (string[i] != '\0') {
         if (string[i] > '9' || string[i] < '0') {
+            printf("\n\nINVALID STRING\n\n");
+            printf("STRING CONTAINS : %c (%d)\n\n", string[i], string[i]); 
             return 1;
         }
         i++;

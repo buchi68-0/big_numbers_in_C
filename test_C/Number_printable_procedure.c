@@ -37,7 +37,7 @@ static void copy_strings(char **dest, const char *src, uint64_t length)
 {
     int i = 0;
 
-    (*dest) = (char *)malloc(length * sizeof(char));
+    (*dest) = (char *)malloc((length + 1) * sizeof(char));
     if ((*dest) == NULL)
         return;
     while (i < length) {

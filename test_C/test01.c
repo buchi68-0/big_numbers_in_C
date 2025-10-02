@@ -39,10 +39,29 @@ static void free_strings(int number, ...)
     return;
 }
 
+char *get_char_from_file(const char *filename)
+{
+    char *returned = (char *)malloc(sizeof(char) * 1000000);
+    FILE *f = fopen(filename, "r");
+    int i;
+
+    if (f == NULL || returned == NULL)
+        return NULL;
+    i = fread(returned, 1, 999999, f);
+    returned[i] = '\0';
+    printf("number in %s is of size %u", filename, i);
+    return returned;
+}
+
 int main(void)
 {
-    number_t a = parse_base10_str("123456789000012356565485164654985415669535297329239252592372372727232525657217627257611262112762712611212127117267212162672456259416975693285256382329464294323422121329213312121231212342567529757685722986532495735625575792432579523283823852372495467375626973253222769276276227327237492572537267986579559757936267253723795378579686231329732756756575765957657565657566792312397687323264542261213579656324297567532613297383622131657594216237565675676756753646297462462267765272576269779525597257");
-    number_t b = parse_base10_str("-2345678900001235656548516465498541566953529732923925259237237272723");
+    char *input1 = get_char_from_file("NUMBER1.mnb");
+    char *input2 = get_char_from_file("NUMBER2.mnb");
+    printf("ptr : %p & %p\n\n", input1, input2);
+    printf("input1 : %s\n\n", input1);
+    printf("input2 : %s\n\n", input2);
+    number_t a = parse_base10_str(input1);
+    number_t b = parse_base10_str(input2);
     number_t c = sub_numbers(&a, &b);
     number_t d = add_numbers(&a, &b);
     char *printed;
@@ -62,6 +81,6 @@ int main(void)
     printf("and    c : %s\n", test);
     printf("and    d : %s\n", test2);
     free_numbers(4, &a, &b, &c, &d);
-    free_strings(4, printed, printed2, test, test2);
+    free_strings(6, printed, printed2, test, test2, input1, input2);
     return 0;
 }
