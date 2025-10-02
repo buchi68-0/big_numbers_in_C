@@ -98,6 +98,16 @@ uint64_t divide_str(uint64_t *input, int64_t *number_of_zeros, int64_t length)
     return rest;
 }
 
+static number_t empty_number(void)
+{
+    number_t r;
+
+    r.Value = NULL;
+    r.sign = 0;
+    r.length = 0;
+    return r;
+}
+
 //divides string over and over again until it's all 0's
 number_t parse_base10_str(const char *string)
 {
@@ -108,10 +118,10 @@ number_t parse_base10_str(const char *string)
     uint64_t division_h[2] = {0, 1};
 
     if (string_length <= 0 || r.Value == NULL)
-        return {NULL, 0, 0};
+        return empty_number();
     handle_sign(&r, &string_length, &string);
     if (string_length <= 0 || is_invalid_string(string))
-        return {NULL, 0, 0};
+        return empty_number();
     new_input = compress_str(string, &string_length, string_length);
     while (nb_zero < string_length) {
         division_h[0] = divide_str(new_input, &nb_zero, string_length);
