@@ -100,7 +100,7 @@ int main(void)
     number_t b = parse_base10_str(input2);
     number_t c = sub_numbers(&a, &b);
     number_t d = add_numbers(&a, &b);
-    number_t e = do_school_mul(&a, &b);
+    number_t e = mul_numbers(&a, &b);
     char **array = (char **)malloc(12 * sizeof(char *));
 
     set_null(array, 12);

@@ -32,10 +32,16 @@ static void *set_number(uint32_t *ptr, uint64_t n)
 }
 
 //creates number of size base_length with all values set to 0
-number_t my_create_number(uint64_t base_length)
+number_t my_create_number(int64_t base_length)
 {
     number_t r;
 
+    if (base_length < 0) {
+        r.sign = 0;
+        r.Value = NULL;
+        r.length = 0;
+        return r;
+    }
     r.Value = (uint32_t *)malloc(base_length * sizeof(uint32_t));
     set_number(r.Value, base_length);
     r.length = base_length;
@@ -69,7 +75,7 @@ void check_useless_zero(number_t *number)
 
     if (number == NULL || number->Value == NULL || number->length == 0)
         return;
-    while (number->Value[nb_of_zero] == 0 && nb_of_zero < number->length)
+    while (number->Value[nb_of_zero] == 0 && nb_of_zero < number->length - 1)
         nb_of_zero++;
     if (nb_of_zero == number->length) {
         my_free_number(number);

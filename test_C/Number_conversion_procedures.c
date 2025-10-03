@@ -135,6 +135,8 @@ number_t parse_base10_str(char *string)
     uint64_t *new_input = compress_str(string, &string_length, string_length);
     uint64_t division_h[3] = {0, 1, 0};
 
+    if (r.Value == NULL || new_input == NULL)
+        return r;
     while (division_h[2] < string_length) {
         division_h[0] = divide_str(new_input, division_h + 2, string_length);
         r.Value[r.length - division_h[1]] = division_h[0];
