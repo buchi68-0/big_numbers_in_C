@@ -36,51 +36,82 @@ static void free_strings(int number, ...)
         free(to_free);
         i++;
     }
+}
+
+static void free_array(char **array)
+{
+    int i = 0;
+
+    if (array == NULL)
+        return;
+    while (array[i] != NULL) {
+        free(array[i]);
+        i++;
+    }
+    free(array);
     return;
 }
 
 char *get_char_from_file(const char *filename)
 {
-    char *returned = (char *)malloc(sizeof(char) * 1000000);
+    char *returned = (char *)malloc(sizeof(char) * 100000);
     FILE *f = fopen(filename, "r");
     int i;
 
     if (f == NULL || returned == NULL)
         return NULL;
-    i = fread(returned, 1, 999999, f);
+    i = fread(returned, 1, 99999, f);
     returned[i] = '\0';
-    printf("number in %s is of size %u", filename, i);
+    fclose(f);
+    printf("number in %s is of size %u\n", filename, i);
     return returned;
+}
+
+static void print_number_array(char **array)
+{
+    int i = 0;
+
+    if (array == NULL)
+        return;
+    while (array[i] != NULL) {
+        printf("number %d = %s\n\n", i + 1, array[i]);
+        i++;
+    }
+}
+
+static void set_null(char **array, int length)
+{
+    int i = 0;
+
+    if (array == NULL)
+        return;
+    while (i < length) {
+        array[i] = NULL;
+        i++;
+    }
+    return;
 }
 
 int main(void)
 {
     char *input1 = get_char_from_file("NUMBER1.mnb");
     char *input2 = get_char_from_file("NUMBER2.mnb");
-    printf("ptr : %p & %p\n\n", input1, input2);
-    printf("input1 : %s\n\n", input1);
-    printf("input2 : %s\n\n", input2);
     number_t a = parse_base10_str(input1);
     number_t b = parse_base10_str(input2);
     number_t c = sub_numbers(&a, &b);
     number_t d = add_numbers(&a, &b);
-    char *printed;
-    char *printed2;
-    char *test;
-    char *test2;
+    number_t e = do_school_mul(&a, &b);
+    char **array = (char **)malloc(12 * sizeof(char *));
 
-    printed = number_to_base10_str(&a);
-    printed2 = number_to_base10_str(&b);
-    test = number_to_base10_str(&c);
-    test2 = number_to_base10_str(&d);
-    printf("Yay ! The programm didn't crash !\n");
-    printf("Here's a's pointer : %p\n", a.Value);
-    printf("Now let's get to the string.\nIt's pointer is : %p\n", printed);
-    printf("and a is : %s\n", printed);
-    printf("and    b : %s\n", printed2);
-    printf("and    c : %s\n", test);
-    printf("and    d : %s\n", test2);
-    free_numbers(4, &a, &b, &c, &d);
-    free_strings(6, printed, printed2, test, test2, input1, input2);
+    set_null(array, 12);
+    array[0] = number_to_base10_str(&a);
+    array[1] = number_to_base10_str(&b);
+    array[2] = number_to_base10_str(&c);
+    array[3] = number_to_base10_str(&d);
+    array[4] = number_to_base10_str(&e);
+    print_number_array(array);
+    free_numbers(5, &a, &b, &c, &d, &e);
+    free_array(array);
+    free_strings(2, input1, input2);
     return 0;
 }

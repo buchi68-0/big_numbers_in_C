@@ -57,32 +57,35 @@ uint64_t *compress_str(const char *Input, int64_t *len_h, int64_t ip_len)
     return r;
 }
 
-static int is_invalid_string(const char *string)
+static int is_invalid_string(char *string, int64_t *ptr)
 {
     int i = 0;
 
     while (string[i] != '\0') {
         if (string[i] > '9' || string[i] < '0') {
-            printf("\n\nINVALID STRING\n\n");
-            printf("STRING CONTAINS : %c (%d)\n\n", string[i], string[i]); 
-            return 1;
+            string[i] = '\0';
+            *ptr = i;
+            return 0;
         }
         i++;
     }
+    *(ptr) = i;
     return 0;
 }
 
-static void handle_sign(number_t *r, int64_t *input_len, const char **string)
+static void handle_sign(int8_t *sign, char *string)
 {
-    if ((*string)[0] == '-') {
-        r->sign = 1;
-        *input_len = *input_len - 1;
-        *string = *string + 1;
+    if (string == NULL || string[0] == '\0') {
+        return;
+    }
+    if (string[0] == '-') {
+        *sign = 1;
+        string[0] = '0';
     }
     return;
 }
 
-uint64_t divide_str(uint64_t *input, int64_t *number_of_zeros, int64_t length)
+uint64_t divide_str(uint64_t *input, uint64_t *number_of_zeros, int64_t length)
 {
     uint64_t division = 0;
     uint64_t rest = 0;
@@ -110,23 +113,30 @@ static number_t empty_number(void)
     return r;
 }
 
-//divides string over and over again until it's all 0's
-number_t parse_base10_str(const char *string)
+static number_t define_number(char *string, int64_t *string_length)
 {
-    int64_t string_length = my_strlen(string);
-    number_t r = my_create_number((string_length * 1000) / 9633 + 2);
-    uint64_t *new_input;
-    int64_t nb_zero = 0;
-    uint64_t division_h[2] = {0, 1};
+    number_t r;
+    int8_t sign;
 
+    handle_sign(&sign, string);
+    is_invalid_string(string, string_length);
+    r = my_create_number((*(string_length) * 1000) / 9633 + 2);
+    r.sign = sign;
     if (string_length <= 0 || r.Value == NULL)
         return empty_number();
-    handle_sign(&r, &string_length, &string);
-    if (string_length <= 0 || is_invalid_string(string))
-        return empty_number();
-    new_input = compress_str(string, &string_length, string_length);
-    while (nb_zero < string_length) {
-        division_h[0] = divide_str(new_input, &nb_zero, string_length);
+    return r;
+}
+
+//divides string over and over again until it's all 0's
+number_t parse_base10_str(char *string)
+{
+    int64_t string_length;
+    number_t r = define_number(string, &string_length);
+    uint64_t *new_input = compress_str(string, &string_length, string_length);
+    uint64_t division_h[3] = {0, 1, 0};
+
+    while (division_h[2] < string_length) {
+        division_h[0] = divide_str(new_input, division_h + 2, string_length);
         r.Value[r.length - division_h[1]] = division_h[0];
         division_h[1]++;
     }

@@ -10,12 +10,12 @@
 
 static void set_retenue(int64_t *intermidiate, uint32_t *retenue)
 {
-    if (*intermidiate < 0) {
-        *retenue = 1;
-        *intermidiate = *intermidiate + 4294967296;
+    if (*(intermidiate) < 0) {
+        *(retenue) = 1;
+        *(intermidiate) = *(intermidiate) + 4294967296;
         return;
     }
-    *retenue = 0;
+    *(retenue) = 0;
     return;
 }
 
@@ -27,7 +27,8 @@ static number_t sub_uns_numbers(number_t *n1, number_t *n2)
     int64_t intermidiate = 0;
 
     for (uint64_t i = 0; i < n1->length; i++) {
-        intermidiate = n1->Value[n1->length - i - 1] - retenue;
+        intermidiate = n1->Value[n1->length - i - 1];
+        intermidiate -= retenue;
         if (i < n2->length) {
             intermidiate -= n2->Value[n2->length - i - 1];
         }
@@ -109,10 +110,12 @@ number_t sub_numbers(number_t *n1, number_t *n2)
     if (n2->sign ^ n1->sign) {
         result = add_uns_numbers(max[0], max[1]);
         result.sign = n1->sign;
+        free(max);
         return result;
     }
     result = sub_uns_numbers(max[0], max[1]);
     result.sign = (max[0] == n2);
+    free(max);
     check_useless_zero(&result);
     return result;
 }
@@ -125,10 +128,12 @@ number_t add_numbers(number_t *n1, number_t *n2)
     if (n2->sign ^ n1->sign) {
         result = sub_uns_numbers(max[0], max[1]);
         result.sign = max[0]->sign;
+        free(max);
         check_useless_zero(&result);
         return result;
     }
     result = add_uns_numbers(max[0], max[1]);
     result.sign = max[0]->sign;
+    free(max);
     return result;
 }

@@ -11,4 +11,5 @@
     #include "Number_type.h"
 number_t my_create_number(uint64_t base_length);
 void check_useless_zero(number_t *Number);
+void my_free_number(number_t *number);
 #endif

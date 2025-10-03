@@ -16,4 +16,5 @@ number_t parse_base10_str(const char *string);
 char *number_to_base10_str(number_t *Number);
 number_t sub_numbers(number_t *n1, number_t *n2);
 number_t add_numbers(number_t *n1, number_t *n2);
+number_t do_school_mul(number_t *n1, number_t *n2);
 #endif
