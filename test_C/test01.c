@@ -92,25 +92,38 @@ static void set_null(char **array, int length)
     return;
 }
 
+static void fill_array(char **array, int number, ...)
+{
+    int i = 0;
+    va_list ap;
+    number_t *get;
+
+    va_start(ap, number);
+    while (i < number) {
+        get = va_arg(ap, number_t *);
+        array[i] = number_to_base10_str(get);
+        i++;
+    }
+    return;
+}
+
 int main(void)
 {
     char *input1 = get_char_from_file("NUMBER1.mnb");
     char *input2 = get_char_from_file("NUMBER2.mnb");
+    number_t *n_array = malloc(12 * sizeof(number_t));
     number_t a = parse_base10_str(input1);
     number_t b = parse_base10_str(input2);
     number_t c = sub_numbers(&a, &b);
     number_t d = add_numbers(&a, &b);
     number_t e = mul_numbers(&a, &b);
+    number_t f = mul_numbers(&b, &a);
     char **array = (char **)malloc(12 * sizeof(char *));
 
     set_null(array, 12);
-    array[0] = number_to_base10_str(&a);
-    array[1] = number_to_base10_str(&b);
-    array[2] = number_to_base10_str(&c);
-    array[3] = number_to_base10_str(&d);
-    array[4] = number_to_base10_str(&e);
+    fill_array(array, 6, &a, &b, &c, &d, &e, &f);
     print_number_array(array);
-    free_numbers(5, &a, &b, &c, &d, &e);
+    free_numbers(6, &a, &b, &c, &d, &e, &f);
     free_array(array);
     free_strings(2, input1, input2);
     return 0;

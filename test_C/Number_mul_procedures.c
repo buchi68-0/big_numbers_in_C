@@ -78,7 +78,7 @@ static void assign_nb(number_t *arg, number_t *array, uint64_t temp)
 
 static void calculate_adds(number_t *dest, number_t *split)
 {
-    dest[0] = add_numbers(split + 0, split + 1);
+    dest[0] = add_numbers(split, split + 1);
     dest[1] = add_numbers(split + 2, split + 3);
 }
 
@@ -108,21 +108,39 @@ static void free_multiple(int number, ...)
     }
 }
 
-static void calculate_muls(number_t *dest, number_t *results, number_t *to, uint64_t temp)
+void calculate_muls(number_t *dst, number_t *res, number_t *to, uint64_t temp)
 {
-    free_multiple(2, results, results + 1);
-    results[0] = sub_numbers(dest + 1, dest);
-    results[1] = bit_shift(results, temp);
-    *(to) = add_numbers(results + 1, dest);
-    free_multiple(4, results, results + 1, dest, dest + 1);
-    if (dest[3].Value == NULL) {
+    free_multiple(2, res, res + 1);
+    res[0] = sub_numbers(&dst[1], &dst[0]);
+    res[1] = sub_numbers(res, &dst[2]);
+    my_free_number(res);
+    res[0] = bit_shift(&res[1], temp);
+    (*to) = add_numbers(res, dst);
+    free_multiple(4, res, res + 1, dst, dst + 1);
+    if (dst[2].Value == NULL) {
         return;
     }
-    results[1] = bit_shift(dest + 2, temp * 2);
-    dest[0] = add_numbers(results + 1, to);
-    free_multiple(3, dest + 2, results + 1, to);
-    *(to) = dest[0];
+    res[1] = bit_shift(&dst[2], temp * 2);
+    dst[0] = add_numbers(&res[1], to);
+    free_multiple(3, dst + 2, res + 1, to);
+    (*to) = dst[0];
     return;
+}
+
+static int is_zero(number_t *test)
+{
+    uint64_t i = 0;
+
+    if (test == NULL || test->Value == NULL || test->length == 0) {
+        return 1;
+    }
+    while (i < test->length && test->Value[i] == 0) {
+        i++;
+    }
+    if (i >= test->length) {
+        return 1;
+    }
+    return 0;
 }
 
 number_t mul_numbers(number_t *arg1, number_t *arg2)
@@ -131,21 +149,21 @@ number_t mul_numbers(number_t *arg1, number_t *arg2)
     number_t r;
     number_t split[4];
     number_t results[2];
-    number_t mul_res[3];
+    number_t mul_res[3] = {empty_number(), empty_number(), empty_number()};
 
-    mul_res[2] = empty_number();
+    if (is_zero(arg1) || is_zero(arg2))
+        return empty_number();
     if (arg1->length < 30 && arg2->length < 30)
         return do_school_mul(arg1, arg2);
-    temp = (MAX(arg1->length, arg2->length)) / 2;
-    printf("arg1 length : %d | arg2 length : %d\n", arg1->length, arg2->length);
-    printf("temp : %ld\n", temp);
+    temp = ((MAX(arg1->length, arg2->length)) + 1) / 2;
     assign_nb(arg1, split, temp);
     assign_nb(arg2, split + 2, temp);
     calculate_adds(results, split);
-    mul_res[0] = mul_numbers(split + 0, split + 2);
-    mul_res[1] = mul_numbers(results + 0, results + 1);
+    mul_res[0] = mul_numbers(split, split + 2);
+    mul_res[1] = mul_numbers(results, results + 1);
     if (split[1].length != 0 && split[3].length != 0)
-        mul_res[2] = mul_numbers(results + 1, results + 3);
+        mul_res[2] = mul_numbers(split + 1, split + 3);
     calculate_muls(mul_res, results, &r, temp);
+    check_useless_zero(&r);
     return r;
 }
