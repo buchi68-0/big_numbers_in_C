@@ -76,12 +76,14 @@ static int is_invalid_string(char *string, int64_t *ptr)
 static void handle_sign(int8_t *sign, char *string)
 {
     if (string == NULL || string[0] == '\0') {
+        (*sign) = 0;
         return;
     }
     if (string[0] == '-') {
-        *sign = 1;
+        (*sign) = 1;
         string[0] = '0';
     }
+    (*sign) = 0;
     return;
 }
 

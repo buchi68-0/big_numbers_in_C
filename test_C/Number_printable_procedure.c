@@ -44,7 +44,7 @@ static void copy_strings(char **dest, const char *src, uint64_t length)
         (*dest)[i] = src[i];
         i++;
     }
-    (*dest)[i] = src[i];
+    (*dest)[i] = '\0';
 }
 
 static char *handles_zero(char *str, uint64_t char_len, int sign)

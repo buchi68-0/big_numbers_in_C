@@ -54,23 +54,27 @@ static void free_array(char **array)
 
 char *get_char_from_file(const char *filename)
 {
-    char *returned = (char *)malloc(sizeof(char) * 100000);
+    char *returned = (char *)malloc(sizeof(char) * 1000000);
     FILE *f = fopen(filename, "r");
     int i;
 
     if (f == NULL || returned == NULL)
         return NULL;
-    i = fread(returned, 1, 99999, f);
+    i = fread(returned, 1, 999999, f);
     returned[i] = '\0';
     fclose(f);
     printf("number in %s is of size %u\n", filename, i);
     return returned;
 }
 
-static void print_number_array(char **array)
+static void print_number_array(char **array, int mode)
 {
     int i = 0;
 
+    if (mode == 0)
+        return;
+    if (mode == 1)
+        i = 2;
     if (array == NULL)
         return;
     while (array[i] != NULL) {
@@ -117,13 +121,12 @@ int main(void)
     number_t c = sub_numbers(&a, &b);
     number_t d = add_numbers(&a, &b);
     number_t e = mul_numbers(&a, &b);
-    number_t f = mul_numbers(&b, &a);
     char **array = (char **)malloc(12 * sizeof(char *));
 
     set_null(array, 12);
-    fill_array(array, 6, &a, &b, &c, &d, &e, &f);
-    print_number_array(array);
-    free_numbers(6, &a, &b, &c, &d, &e, &f);
+    fill_array(array, 5, &a, &b, &c, &d, &e);
+    print_number_array(array, 1);
+    free_numbers(5, &a, &b, &c, &d, &e);
     free_array(array);
     free_strings(2, input1, input2);
     return 0;

@@ -104,7 +104,7 @@ static number_t **get_bigger_number(number_t *n1, number_t *n2)
 
 number_t sub_numbers(number_t *n1, number_t *n2)
 {
-    number_t result;
+    number_t result = {NULL, 0, 0};
     number_t **max = get_bigger_number(n1, n2);
 
     if (n2->sign ^ n1->sign) {
@@ -122,7 +122,7 @@ number_t sub_numbers(number_t *n1, number_t *n2)
 
 number_t add_numbers(number_t *n1, number_t *n2)
 {
-    number_t result;
+    number_t result = {NULL, 0, 0};
     number_t **max = get_bigger_number(n1, n2);
 
     if (n2->sign ^ n1->sign) {
