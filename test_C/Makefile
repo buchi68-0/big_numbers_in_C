@@ -12,7 +12,7 @@ SRC = *.c
 all : re
 
 re : fclean
-	epiclang -o $(NAME) $(SRC)
+	clang -o $(NAME) $(SRC)
 
 fclean : clean
 	rm -f test
@@ -24,8 +24,8 @@ clean :
 debug : fclean
 	epiclang -g -o $(NAME) $(SRC)
 
-opti : fclean
-	clang -o $(NAME) $(SRC)
-
 fsanit : fclean
 	clang -fsanitize=address -g -o $(NAME) $(SRC)
+
+gccver : fclean
+	gcc -o $(NAME) $(SRC)
