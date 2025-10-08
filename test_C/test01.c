@@ -6,6 +6,7 @@
 */
 
 #include "main_dependencies.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -124,8 +125,8 @@ int main(void)
     char **array = (char **)malloc(12 * sizeof(char *));
 
     set_null(array, 12);
-    fill_array(array, 5, &a, &b, &c, &d, &e);
-    print_number_array(array, 1);
+    fill_array(array, 1, &e);
+    print_number_array(array, 0);
     free_numbers(5, &a, &b, &c, &d, &e);
     free_array(array);
     free_strings(2, input1, input2);

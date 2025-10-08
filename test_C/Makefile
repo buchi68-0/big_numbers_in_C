@@ -24,3 +24,8 @@ clean :
 debug : fclean
 	epiclang -g -o $(NAME) $(SRC)
 
+opti : fclean
+	clang -o $(NAME) $(SRC)
+
+fsanit : fclean
+	clang -fsanitize=address -g -o $(NAME) $(SRC)

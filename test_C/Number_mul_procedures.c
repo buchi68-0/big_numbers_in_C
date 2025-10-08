@@ -145,7 +145,7 @@ static int is_zero(number_t *test)
 
 number_t mul_numbers(number_t *arg1, number_t *arg2)
 {
-    uint64_t temp;
+    uint64_t temp = ((MAX(arg1->length, arg2->length)) + 1) / 2;
     number_t r;
     number_t split[4];
     number_t results[2];
@@ -155,7 +155,6 @@ number_t mul_numbers(number_t *arg1, number_t *arg2)
         return empty_number();
     if (arg1->length < 30 && arg2->length < 30)
         return do_school_mul(arg1, arg2);
-    temp = ((MAX(arg1->length, arg2->length)) + 1) / 2;
     assign_nb(arg1, split, temp);
     assign_nb(arg2, split + 2, temp);
     calculate_adds(results, split);
