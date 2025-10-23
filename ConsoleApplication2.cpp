@@ -971,4 +971,3 @@ int main()
     GetButtonPress(); //wait for key press to end the programm
     return 0;
 }
-
