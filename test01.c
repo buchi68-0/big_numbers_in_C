@@ -8,37 +8,33 @@
 #include "main_dependencies.h"
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
+#include <time.h>
 
-/* using a variadic list, frees
-** up to number number_t* variables
-** the number of args in the ... are
-** expected to be at least the value of number
-** all values in the va_list are expected to be
-** number_t *.
-** other values will cause seg-faults */
-static void free_numbers(int number, ...)
+/* frees all numbers in array up to number
+** number has to be at most the length of array
+** array must be filled up to number
+*/
+static void free_number_array(int number, number_t *array)
 {
     int i = 0;
-    va_list ap;
-    number_t *to_free;
 
-    va_start(ap, number);
     while (i < number) {
-        to_free = va_arg(ap, number_t *);
-        my_free_number(to_free);
+        my_free_number(array + i);
         i++;
     }
-    return;
+    free(array);
 }
 
 /* same as free_array (see below)
 ** except it uses a variadic list
-** to free multiple strings.
+** to free multiple heap memory.
 ** the number of args in ... are
 ** expected to be at least the value of number
-** all values in the va_list are expected to be char *
+** all values in the va_list are expected to be void *
+** all void * are expected to be valid pointers in heap
 ** other values could cause seg-faults */
-static void free_strings(int number, ...)
+static void free_memory(int number, ...)
 {
     int i = 0;
     va_list ap;
@@ -46,7 +42,7 @@ static void free_strings(int number, ...)
 
     va_start(ap, number);
     while (i < number) {
-        to_free = va_arg(ap, char *);
+        to_free = va_arg(ap, void *);
         free(to_free);
         i++;
     }
@@ -110,41 +106,63 @@ static void print_number_array(char **array, int mode)
     }
 }
 
-/* this function sets null in the array so all
-** values are NULL and can be easily found as
-** "terminating bytes" (pointers then) */
-static void set_null(char **array, int length)
-{
-    int i = 0;
-
-    if (array == NULL)
-        return;
-    while (i < length) {
-        array[i] = NULL;
-        i++;
-    }
-    return;
-}
-
 /* fills the array with number number_t *values
 ** uses a variadic list, and of course it expects
 ** at least the same amount of args after the ...
 ** than the value of number
 ** all values are also expected to be number_t *
 ** other values will for sure cause seg-faults */
-static void fill_array(char **array, int number, ...)
+static timespec_t *fill_array(char **array, int number, ...)
 {
     int i = 0;
     va_list ap;
     number_t *get;
+    timespec_t r;
+    timespec_t *empty = calloc(1, sizeof(timespec_t));
 
+    if (!timespec_get(&r, TIME_UTC) || empty == NULL)
+        return NULL;
     va_start(ap, number);
     while (i < number) {
         get = va_arg(ap, number_t *);
         array[i] = number_to_base10_str(get);
         i++;
     }
-    return;
+    if (!timespec_get(empty, TIME_UTC))
+        return empty;
+    timespec_treat(empty, &r);
+    return empty;
+}
+
+static timespec_t *parse(number_t *array, char *input1, char *input2)
+{
+    timespec_t r;
+    timespec_t *empty = calloc(1, sizeof(timespec_t));
+
+    if (!timespec_get(&r, TIME_UTC) || empty == NULL)
+        return NULL;
+    array[0] = parse_base10_str(input1);
+    array[1] = parse_base10_str(input2);
+    if (!timespec_get(empty, TIME_UTC))
+        return empty;
+    timespec_treat(empty, &r);
+    return empty;
+}
+
+static timespec_t *calculate(number_t *array)
+{
+    timespec_t r;
+    timespec_t *returned = calloc(1, sizeof(timespec_t));
+
+    if (!timespec_get(&r, TIME_UTC) || returned == NULL)
+        return NULL;
+    array[2] = add_numbers(array, array + 1);
+    array[3] = sub_numbers(array, array + 1);
+    array[4] = mul_numbers(array, array + 1);
+    if (!timespec_get(returned, TIME_UTC))
+        return returned;
+    timespec_treat(returned, &r);
+    return returned;
 }
 
 /* sample of tests.
@@ -160,19 +178,19 @@ int main(void)
 {
     char *input1 = get_char_from_file("NUMBER1.mnb");
     char *input2 = get_char_from_file("NUMBER2.mnb");
-    number_t *n_array = malloc(12 * sizeof(number_t));
-    number_t a = parse_base10_str(input1);
-    number_t b = parse_base10_str(input2);
-    number_t c = sub_numbers(&a, &b);
-    number_t d = add_numbers(&a, &b);
-    number_t e = mul_numbers(&a, &b);
-    char **array = (char **)malloc(12 * sizeof(char *));
+    number_t *n_array = calloc(12, sizeof(number_t));
+    timespec_t *first = parse(n_array, input1, input2);
+    timespec_t *second = calculate(n_array);
+    timespec_t *third;
+    char **array = (char **)calloc(12, sizeof(char *));
 
-    set_null(array, 12);
-    fill_array(array, 0, &e);
+    third = fill_array(array, 0, n_array);
     print_number_array(array, 0);
-    free_numbers(5, &a, &b, &c, &d, &e);
+    printf("parsing : %ld.%.9lds\n", first->tv_sec, first->tv_nsec);
+    printf("operations : %ld.%.9lds\n", second->tv_sec, second->tv_nsec);
+    printf("conversion : %ld.%.9lds\n", third->tv_sec, third->tv_nsec);
     free_array(array);
-    free_strings(2, input1, input2);
+    free_number_array(5, n_array);
+    free_memory(5, input1, input2, first, second, third);
     return 0;
 }

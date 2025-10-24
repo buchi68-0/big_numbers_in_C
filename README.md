@@ -11,9 +11,16 @@ parsing base10 string to Number (trying to optimize right now)
 converting Number to base10 string
 
 ## Efficiency :
-- Multiplication alone of 2 Numbers from 1 MiB char* takes 2.2s
-- parsing is taking 15.1s in the same conditions
-- convertion back to string should be about 20s for each Numbers and 80 for multiplication (I made an option to skip string conversion because it's the thing taking the most time)
+- Multiplication alone of 2 Numbers from raw 200kB values takes 2.3 seconds (that would be the Number from the parsing of a 481kB string)
+- Multiplication alone of 2 Numbers from raw 4MB values takes 130.3 seconds (that would be the Number from the parsing of a 9.63MB string)
+- parsing is taking 18 seconds for 2 1MB string 293 seconds for 2 4MB string
+- conversion is taking 185 seconds for a 2MB string (multiplication of 2 1MB strings)
+
+## Algorithms :
+- parsing and conversion to base 10 string are both O(n²) and the constant c of conversion is about 5 times higher than the parsing one.
+- 18 seconds for parsing (there's 2 strings so 9 each), 45 seconds for conversion; and 180 seconds for conversion of multiplication which, because it's 2 time bigger, takes 4 times more time
+- multiplication is O(n^(log2(3))) or ~O(n^1.585) thanks to karatsuba algorithm
+- 2.3 seconds for 200kB raw and 130.3 for 4MB raw
 
 # News :
 - recoded the whole thing in C, according to Epitech's coding style (20 lines per function, max 10 per file)
@@ -27,6 +34,8 @@ converting Number to base10 string
     - everyone depends on the Number_type.h (of course)
     - all except for the one itself requires Number_creation_procedures
     - Number_mul_procedures depends on Number_basic_operation_procedures also.
+    - timespec_use.c depends on main_procedures.c and defines functions to use timespec_t more easily
+    - test01.c depends on timespec_use.c
 - there's a makefile to compile. In : test_C/Makefile (everything will be putted back in root when finished)
 
 # Use the makefile :
