@@ -8,7 +8,7 @@
 
 #ifndef MULTIPLICATION_HEADER_H
     #define MULTIPLICATION_HEADER_H
-    #include "Number_type.h"
+    #include "number_type.h"
     #define MAXINT 4294967295
     #define MAX(a, b) a > b ? a : b
 number_t my_create_number(uint64_t base_length);

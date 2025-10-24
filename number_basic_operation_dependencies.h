@@ -11,7 +11,7 @@
 
 #ifndef BASIC_OP_DEPENDENCIES_
     #define BASIC_OP_DEPENDENCIES_
-    #include "Number_type.h"
+    #include "number_type.h"
     #define MIN(a, b) a < b ? a : b
     #define MAX(a, b) a > b ? a : b
 number_t my_create_number(uint64_t base_length);

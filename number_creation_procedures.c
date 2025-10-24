@@ -6,7 +6,7 @@
 ** allowing them to be allocated, deallocated
 */
 
-#include "Number_type.h"
+#include "number_type.h"
 
 //frees number's limbs and nullifies it's caracteristics
 void my_free_number(number_t *Tofree)

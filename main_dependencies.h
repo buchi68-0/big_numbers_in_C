@@ -8,7 +8,7 @@
 
 #ifndef MAIN_NUMBER_FAILSAFE_
     #define MAIN_NUMBER_FAILSAFE_
-    #include "Number_type.h"
+    #include "number_type.h"
     #define MAX_STR 200000
     #include <time.h>
 void my_free_number(number_t *Tofree);

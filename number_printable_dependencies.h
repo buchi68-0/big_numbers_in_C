@@ -11,7 +11,7 @@
 
 #ifndef PRINTABLE_DEPENDENCIES_
     #define PRINTABLE_DEPENDENCIES_
-    #include "Number_type.h"
+    #include "number_type.h"
 void my_free_number(number_t *Number);
 number_t my_create_number(uint64_t base_length);
 void my_memcpy(number_t *Dest, number_t *Src, int from);

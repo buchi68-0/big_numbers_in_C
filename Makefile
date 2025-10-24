@@ -7,11 +7,11 @@
 
 NAME = "test"
 
-SRC = Number_basic_operation.c	\
-	Number_conversion_procedures.c	\
-	Number_creation_procedures.c	\
-	Number_mul_procedures.c	\
-	Number_printable_procedure.c	\
+SRC = number_basic_operation.c	\
+	number_conversion_procedures.c	\
+	number_creation_procedures.c	\
+	number_mul_procedures.c	\
+	number_printable_procedure.c	\
 	test01.c	\
 	timespec_use.c
 
