@@ -14,11 +14,11 @@ static void private_add_assign(number_t *n1, number_t *n2)
     uint64_t number = 0;
 
     for (uint64_t i = n1->length - 1; i < n1->length; i--) {
-        number += n2->Value[i];
-        number += n1->Value[i];
-        n1->Value[i] = number;
+        number += n2->limbs[i];
+        number += n1->limbs[i];
+        n1->limbs[i] = number;
         number = number >> 32;
-        n2->Value[i] = 0;
+        n2->limbs[i] = 0;
     }
 }
 
@@ -31,12 +31,12 @@ number_t do_school_mul(number_t *multiplied, number_t *multiplier)
 
     for (uint64_t k = 0; k < multiplied->length; k++) {
         for (uint64_t j = 0; j < multiplier->length; j++) {
-            temporary = multiplied->Value[multiplied->length - k - 1];
-            temporary *= multiplier->Value[multiplier->length - j - 1];
-            temp.Value[temp.length - k - j - 1] += temporary;
-            flag = (temp.Value[temp.length - k - j - 1] < (temporary & MAXINT));
-            temp.Value[temp.length - k - j - 2] += flag;
-            temp.Value[temp.length - k - j - 2] += temporary >> 32;
+            temporary = multiplied->limbs[multiplied->length - k - 1];
+            temporary *= multiplier->limbs[multiplier->length - j - 1];
+            temp.limbs[temp.length - k - j - 1] += temporary;
+            flag = (temp.limbs[temp.length - k - j - 1] < (temporary & MAXINT));
+            temp.limbs[temp.length - k - j - 2] += flag;
+            temp.limbs[temp.length - k - j - 2] += temporary >> 32;
         }
         private_add_assign(&result, &temp);
     }
@@ -51,7 +51,7 @@ static number_t empty_number(void)
     number_t r;
 
     r.sign = 0;
-    r.Value = NULL;
+    r.limbs = NULL;
     r.length = 0;
     return r;
 }
@@ -61,16 +61,16 @@ static void assign_nb(number_t *arg, number_t *array, uint64_t temp)
     if (temp > arg->length) {
         array->length = arg->length;
         array->sign = arg->sign;
-        array->Value = arg->Value;
+        array->limbs = arg->limbs;
         (array + 1)->length = 0;
         (array + 1)->sign = 0;
-        (array + 1)->Value = NULL;
+        (array + 1)->limbs = NULL;
         return;
     }
     array->length = temp;
-    array->Value = arg->Value + arg->length - temp;
+    array->limbs = arg->limbs + arg->length - temp;
     array->sign = arg->sign;
-    (array + 1)->Value = arg->Value;
+    (array + 1)->limbs = arg->limbs;
     (array + 1)->sign = arg->sign;
     (array + 1)->length = arg->length - temp;
     return;
@@ -86,10 +86,10 @@ number_t bit_shift(number_t *from, uint64_t number)
 {
     number_t r = my_create_number(from->length + number);
 
-    if (r.Value == NULL)
+    if (r.limbs == NULL)
         return empty_number();
     for (uint64_t i = 0; i < from->length; i++) {
-        r.Value[i] = from->Value[i];
+        r.limbs[i] = from->limbs[i];
     }
     return r;
 }
@@ -117,7 +117,7 @@ void calculate_muls(number_t *dst, number_t *res, number_t *to, uint64_t temp)
     res[0] = bit_shift(&res[1], temp);
     (*to) = add_numbers(res, dst);
     free_multiple(4, res, res + 1, dst, dst + 1);
-    if (dst[2].Value == NULL) {
+    if (dst[2].limbs == NULL) {
         return;
     }
     res[1] = bit_shift(&dst[2], temp * 2);
@@ -131,10 +131,10 @@ static int is_zero(number_t *test)
 {
     uint64_t i = 0;
 
-    if (test == NULL || test->Value == NULL || test->length == 0) {
+    if (test == NULL || test->limbs == NULL || test->length == 0) {
         return 1;
     }
-    while (i < test->length && test->Value[i] == 0) {
+    while (i < test->length && test->limbs[i] == 0) {
         i++;
     }
     if (i >= test->length) {

@@ -13,7 +13,7 @@
     #include <malloc.h>
 
 typedef struct number_s {
-    uint32_t *Value;
+    uint32_t *limbs;
     uint64_t length;
     int sign;
 } number_t;

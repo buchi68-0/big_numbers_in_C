@@ -109,7 +109,7 @@ static number_t empty_number(void)
 {
     number_t r;
 
-    r.Value = NULL;
+    r.limbs = NULL;
     r.sign = 0;
     r.length = 0;
     return r;
@@ -124,7 +124,7 @@ static number_t define_number(char *string, int64_t *string_length)
     is_invalid_string(string, string_length);
     r = my_create_number((*(string_length) * 1000) / 9633 + 2);
     r.sign = sign;
-    if (string_length <= 0 || r.Value == NULL)
+    if (string_length <= 0 || r.limbs == NULL)
         return empty_number();
     return r;
 }
@@ -137,11 +137,11 @@ number_t parse_base10_str(char *string)
     uint64_t *new_input = compress_str(string, &string_length, string_length);
     uint64_t division_h[3] = {0, 1, 0};
 
-    if (r.Value == NULL || new_input == NULL)
+    if (r.limbs == NULL || new_input == NULL)
         return r;
     while (division_h[2] < string_length) {
         division_h[0] = divide_str(new_input, division_h + 2, string_length);
-        r.Value[r.length - division_h[1]] = division_h[0];
+        r.limbs[r.length - division_h[1]] = division_h[0];
         division_h[1]++;
     }
     check_useless_zero(&r);

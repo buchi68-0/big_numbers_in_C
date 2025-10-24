@@ -8,14 +8,14 @@
 
 #include "Number_type.h"
 
-//frees number's Value and nullifies it's caracteristics
+//frees number's limbs and nullifies it's caracteristics
 void my_free_number(number_t *Tofree)
 {
-    if (Tofree->Value == NULL){
+    if (Tofree->limbs == NULL){
         return;
     }
-    free(Tofree->Value);
-    Tofree->Value = NULL;
+    free(Tofree->limbs);
+    Tofree->limbs = NULL;
     Tofree->length = 0;
 }
 
@@ -38,15 +38,15 @@ number_t my_create_number(int64_t base_length)
 
     if (base_length < 0) {
         r.sign = 0;
-        r.Value = NULL;
+        r.limbs = NULL;
         r.length = 0;
         return r;
     }
-    r.Value = (uint32_t *)malloc(base_length * sizeof(uint32_t));
-    set_number(r.Value, base_length);
+    r.limbs = (uint32_t *)malloc(base_length * sizeof(uint32_t));
+    set_number(r.limbs, base_length);
     r.length = base_length;
     r.sign = 0;
-    if (r.Value == NULL) {
+    if (r.limbs == NULL) {
         r.length = 0;
     }
     return r;
@@ -57,12 +57,12 @@ void my_memcpy(number_t *Dest, number_t *Src, int from)
 {
     uint64_t i = 0;
 
-    if (Dest->Value == NULL) {
+    if (Dest->limbs == NULL) {
         Dest->length = 0;
         return;
     }
     while (i < Dest->length) {
-        Dest->Value[i] = Src->Value[i + from];
+        Dest->limbs[i] = Src->limbs[i + from];
         i++;
     }
     return;
@@ -73,9 +73,9 @@ void check_useless_zero(number_t *number)
     uint64_t nb_of_zero = 0;
     number_t temp;
 
-    if (number == NULL || number->Value == NULL || number->length == 0)
+    if (number == NULL || number->limbs == NULL || number->length == 0)
         return;
-    while (number->Value[nb_of_zero] == 0 && nb_of_zero < number->length - 1)
+    while (number->limbs[nb_of_zero] == 0 && nb_of_zero < number->length - 1)
         nb_of_zero++;
     if (nb_of_zero == number->length) {
         my_free_number(number);

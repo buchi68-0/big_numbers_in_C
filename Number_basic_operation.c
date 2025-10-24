@@ -27,13 +27,13 @@ static number_t sub_uns_numbers(number_t *n1, number_t *n2)
     int64_t intermidiate = 0;
 
     for (uint64_t i = 0; i < n1->length; i++) {
-        intermidiate = n1->Value[n1->length - i - 1];
+        intermidiate = n1->limbs[n1->length - i - 1];
         intermidiate -= retenue;
         if (i < n2->length) {
-            intermidiate -= n2->Value[n2->length - i - 1];
+            intermidiate -= n2->limbs[n2->length - i - 1];
         }
         set_retenue(&intermidiate, &retenue);
-        result.Value[result.length - i - 1] = intermidiate;
+        result.limbs[result.length - i - 1] = intermidiate;
     }
     check_useless_zero(&result);
     return result;
@@ -46,14 +46,14 @@ static number_t add_uns_numbers(number_t *n1, number_t *n2)
     uint64_t retenue = 0;
 
     for (uint64_t i = 0; i < n1->length; i++) {
-        retenue += n1->Value[n1->length - i - 1];
+        retenue += n1->limbs[n1->length - i - 1];
         if (i < n2->length) {
-            retenue += n2->Value[n2->length - i - 1];
+            retenue += n2->limbs[n2->length - i - 1];
         }
-        result.Value[n1->length - i] = retenue & 4294967295;
+        result.limbs[n1->length - i] = retenue & 4294967295;
         retenue = retenue >> 32;
     }
-    result.Value[0] = retenue;
+    result.limbs[0] = retenue;
     check_useless_zero(&result);
     return result;
 }
@@ -63,10 +63,10 @@ static int handles_diff(int8_t *flag, number_t *n1, number_t *n2, uint64_t i)
     int64_t difference = 0;
 
     if (i < n1->length) {
-        difference += n1->Value[n1->length - i - 1];
+        difference += n1->limbs[n1->length - i - 1];
     }
     if (i < n2->length) {
-        difference -= n2->Value[n2->length - i - 1];
+        difference -= n2->limbs[n2->length - i - 1];
     }
     if (difference == 0) {
         return 0;

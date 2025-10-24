@@ -9,7 +9,7 @@
 #ifndef MAIN_NUMBER_FAILSAFE_
     #define MAIN_NUMBER_FAILSAFE_
     #include "Number_type.h"
-    #define MAX_STR 4000000
+    #define MAX_STR 200000
     #include <time.h>
 void my_free_number(number_t *Tofree);
 number_t my_create_number(uint64_t base_length);

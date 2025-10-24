@@ -19,9 +19,9 @@ static void fill_string(char *str, uint64_t char_len, number_t *copy)
     while (nb_zeros != copy->length) {
         for (uint64_t i = nb_zeros; i < copy->length; i++) {
             rest *= 4294967296;
-            rest += copy->Value[i];
-            copy->Value[i] = rest / 1000000000;
-            nb_zeros += (i == nb_zeros && copy->Value[i] == 0);
+            rest += copy->limbs[i];
+            copy->limbs[i] = rest / 1000000000;
+            nb_zeros += (i == nb_zeros && copy->limbs[i] == 0);
             rest = rest % 1000000000;
         }
         for (int j = 0; j < 9 && pointer < char_len; j++) {
@@ -86,7 +86,7 @@ char *number_to_base10_str(number_t *Input)
     char *returned = (char *)malloc((char_len + 1) * sizeof(char));
     char *real_r;
 
-    if (copy.Value == NULL || returned == NULL) {
+    if (copy.limbs == NULL || returned == NULL) {
         my_free_number(&copy);
         free(returned);
     }
