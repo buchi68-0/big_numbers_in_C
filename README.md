@@ -34,7 +34,7 @@ converting Number to base10 string
     - everyone depends on the Number_type.h (of course)
     - all except for the one itself requires Number_creation_procedures
     - Number_mul_procedures depends on Number_basic_operation_procedures also.
-    - timespec_use.c depends on main_procedures.c and defines functions to use timespec_t more easily
+    - timespec_use.c depends on main_dependencies.h and defines functions to use timespec_t more easily
     - test01.c depends on timespec_use.c
 - there's a makefile to compile. In : test_C/Makefile (everything will be putted back in root when finished)
 
