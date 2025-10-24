@@ -56,6 +56,8 @@ static number_t empty_number(void)
     return r;
 }
 
+/* Splits *arg in 2 into array[0] and array[1]
+** both cases are depending on if temp > length or not*/
 static void assign_nb(number_t *arg, number_t *array, uint64_t temp)
 {
     if (temp > arg->length) {

@@ -33,6 +33,7 @@ static void fill_string(char *str, uint64_t char_len, number_t *copy)
     }
 }
 
+/* copies src into (*dest) while allocating (*dest) also */
 static void copy_strings(char **dest, const char *src, uint64_t length)
 {
     int i = 0;
@@ -47,6 +48,10 @@ static void copy_strings(char **dest, const char *src, uint64_t length)
     (*dest)[i] = '\0';
 }
 
+/* handles trailing zeros from str
+** case 1 : everything is zero : copy only one zero
+** else : copies characters from the first non zero (!'0') character
+** (+ 1 if negative, from one before to then put the sign) */
 static char *handles_zero(char *str, uint64_t char_len, int sign)
 {
     uint64_t nb_zero = 0;
@@ -68,6 +73,9 @@ static char *handles_zero(char *str, uint64_t char_len, int sign)
     return returned;
 }
 
+/* memset with '0' (or 48) as the c byte
+** puts a \0 at the end so length should be
+** the length allocated - 1*/
 static void fill_w_zeros(char *str, uint64_t len)
 {
     uint64_t i = 0;
@@ -79,6 +87,8 @@ static void fill_w_zeros(char *str, uint64_t len)
     str[len] = '\0';
 }
 
+/* main function of the file
+** converts Input into a string */
 char *number_to_base10_str(number_t *Input)
 {
     number_t copy = my_create_number(Input->length);

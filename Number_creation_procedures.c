@@ -68,6 +68,7 @@ void my_memcpy(number_t *Dest, number_t *Src, int from)
     return;
 }
 
+//reallocs number into smaller size with no trailing zeros
 void check_useless_zero(number_t *number)
 {
     uint64_t nb_of_zero = 0;

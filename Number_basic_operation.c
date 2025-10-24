@@ -77,7 +77,11 @@ static int handles_diff(int8_t *flag, number_t *n1, number_t *n2, uint64_t i)
     return 1;
 }
 
-//returns a number_t ** where [0] is (pointer to) max and [1] is min
+/*returns a number_t ** where [0] is (pointer to) max and [1] is min
+** this protection is not working btw (6th line in function)
+** because I would've already have accessed 0x8 if
+** either n1 or n2 were NULL
+** (although, it is protecting the malloc at least)*/
 static number_t **get_bigger_number(number_t *n1, number_t *n2)
 {
     int64_t n2_index = n2->length;

@@ -173,7 +173,12 @@ static timespec_t *calculate(number_t *array)
 ** print_number_array, so it doesn't display anything
 ** it works, though
 ** max size of string can be changed in
-** the main_dependencies.h */
+** the main_dependencies.h 
+** if you want to see a display of the numbers
+** just add said numbers' pointer into fill_array
+** change the int in fill_array to fit the number
+** of number_t * and then add these numbers into
+** print_number_array (and change the mode to 2)*/
 int main(void)
 {
     char *input1 = get_char_from_file("NUMBER1.mnb");
