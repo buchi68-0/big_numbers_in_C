@@ -173,7 +173,7 @@ static timespec_t *calculate(number_t *array)
 ** print_number_array, so it doesn't display anything
 ** it works, though
 ** max size of string can be changed in
-** the main_dependencies.h 
+** the main_dependencies.h
 ** if you want to see a display of the numbers
 ** just add said numbers' pointer into fill_array
 ** change the int in fill_array to fit the number
