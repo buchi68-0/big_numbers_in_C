@@ -26,38 +26,33 @@ static size_t approximate_bigint_length(bigint_t const *number)
 static uint64_t divide_number_by_one_billion(bigint_t *number)
 {
     uint64_t rest = 0;
+    int8_t found_non_zero = 0;
 
-    for (size_t i = number->len - 1; i < number->len; i--) {
-        rest *= LIMB_BASE;
-        rest += number->limb[i];
+    for (ssize_t i = number->len - 1; i >= 0; i--) {
+        rest <<= LIMB_BITS;
+        rest += (uint64_t)number->limb[i];
         number->limb[i] = rest / 1000000000ULL;
         rest %= 1000000000ULL;
+        if (!found_non_zero) {
+            if (!number->limb[i]) {
+                number->len--;
+            } else {
+                found_non_zero = 1;
+            }
+        }
     }
     return rest;
 }
 
-static void my_revstr(char *s)
+static void my_revstr(char *s, size_t s_ptr)
 {
-    size_t length = strlen(s);
     char tmp;
 
-    for (size_t i = 0; i < length / 2; i++) {
+    for (size_t i = 0; i < s_ptr / 2; i++) {
         tmp = s[i];
-        s[i] = s[length - i - 1];
-        s[length - i - 1] = tmp;
+        s[i] = s[s_ptr - i - 1];
+        s[s_ptr - i - 1] = tmp;
     }
-}
-
-static void track_last_zeros(char *s, size_t s_ptr, int8_t flag)
-{
-    while (s_ptr > 1 && s[s_ptr - 1] == '0') {
-        s_ptr--;
-    }
-    if (flag) {
-        s[s_ptr] = '-';
-        s_ptr++;
-    }
-    s[s_ptr] = '\0';
 }
 
 char *convert_bigint_to_str(bigint_t const *number)
@@ -78,15 +73,25 @@ char *convert_bigint_to_str(bigint_t const *number)
     do
     {
         uint64_t result = divide_number_by_one_billion(duplicate);
-        uint64_t division = 1;
-        for (size_t i = 0; i < 9; i++, division *= 10) {
-            s[s_ptr + i] = (result / division) % 10 + '0';
+        if (is_number_zero(duplicate)) {
+            do {
+                s[s_ptr++] = (result % 10) + '0';
+                result /= 10;
+            } while (result);
+            if (number->sign) {
+                s[s_ptr++] = '-';
+            }
+            s[s_ptr] = '\0';
+            break;
+        } else {
+            for (int i = 0; i < 9; i++) {
+                s[s_ptr++] = (result % 10) + '0';
+                result /= 10;
+            }
         }
-        s_ptr += 9;
-    } while (!is_number_zero(duplicate));
+    } while (1);
     free_number(duplicate);
-    track_last_zeros(s, s_ptr, number->sign);
-    my_revstr(s);
+    my_revstr(s, s_ptr);
     return s;
 }
 
