@@ -22,7 +22,6 @@ converting Number to base10 string
 
 > [!NOTE]
 > This test has been made on my charging, default settings laptop, with an Intel Core (ultra) 5 120U, performances may change according yo your config
-> [!NOTE]
 > The project was **not** compiles using optimisations, which was the case on the old benchmark values, we can up to have 5x faster times
 
 ## Algorithms
