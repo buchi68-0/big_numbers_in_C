@@ -1,61 +1,107 @@
 # big_numbers_in_C
+
 have ints that can fill up to the full RAM
 
 ## Features
-Can do basic operation, such as addition, subtraction and multiplication ; division insn't here yet, and might never be
-Can parse a string into binary, and do the operation the other way around
 
-## Feel free to help me by doing a pull request !
+Can do basic operation, such as addition, subtraction and multiplication ; division insn't here yet, and might never be
+Can convert a big number into a string, but not the other way around yet
+
+## Feel free to help me by doing a pull request
+
 this is some issues I know there is (mostly things that are taking too much time) :
 parsing base10 string to Number (trying to optimize right now)
 converting Number to base10 string
 
-## Efficiency :
-- Multiplication alone of 2 Numbers from raw 200kB values takes 2.3 seconds (that would be the Number from the parsing of a 481kB string)
-- Multiplication alone of 2 Numbers from raw 4MB values takes 130.3 seconds (that would be the Number from the parsing of a 9.63MB string)
-- parsing is taking 18 seconds for 2 1MB string 293 seconds for 2 4MB string
-- conversion is taking 185 seconds for a 2MB string (multiplication of 2 1MB strings)
+## Efficiency
 
-## Algorithms :
-- parsing and conversion to base 10 string are both O(n²) and the constant c of conversion is about 5 times higher than the parsing one.
-- 18 seconds for parsing (there's 2 strings so 9 each), 45 seconds for conversion; and 180 seconds for conversion of multiplication which, because it's 2 time bigger, takes 4 times more time
-- multiplication is O(n^(log2(3))) or ~O(n^1.585) thanks to karatsuba algorithm
-- 2.3 seconds for 200kB raw and 130.3 for 4MB raw
+- Multiplication alone of 2 Numbers from raw 200kB values takes about 0.5 seconds (that would be the Number from the parsing of a 481 thousands digits string)
+- Multiplication alone of 2 Numbers from raw 4MB values takes 61 seconds (that would be the Number from the parsing of a 9.63MB string)
+- converting a 200kB number into string takes 51 seconds
+- parsing hasn't been benchmarked yet, because the newest version is not out yet
 
-# News :
-- recoded the whole thing in C, according to Epitech's coding style (20 lines per function, max 10 per file)
-- features are now separated in files depending on what they do :
-    - Number_creation_procedures allows for basic creation and allocation of numbers
-    - Number_conversion_procedures allows for parsing base 10 string into binary number
-    - Number_printable_procedures allows for converting binary number into base 10 string
-    - Number_basic_operation_procedures allows for basic opereration, such as addition and subtraction
-    - Number_mul_procedures allow for multiplication with 2 algorithm, one O(n²) and one O(n^(log(3)/log(2)))
-- files depends on others to work. Here's the list :
-    - everyone depends on the Number_type.h (of course)
-    - all except for the one itself requires Number_creation_procedures
-    - Number_mul_procedures depends on Number_basic_operation_procedures also.
-    - timespec_use.c depends on main_dependencies.h and defines functions to use timespec_t more easily
-    - test01.c depends on timespec_use.c
-- there's a makefile to compile. In : test_C/Makefile (everything will be putted back in root when finished)
+> [!NOTE]
+> This test has been made on my charging, default settings laptop, with an Intel Core (ultra) 5 120U, performances may change according yo your config
+> [!NOTE]
+> The project was **not** compiles using optimisations, which was the case on the old benchmark values, we can up to have 5x faster times
 
-# Use the makefile :
-- for Linux (and maybe Mac) users :
-    - make alone compiles with clang
-    - for gcc users, there's a gccver rule
-    - make debug launches debug for myself, and as such uses epiclang which i'm pretty sure you don't have
-    - make fsanit launches with fsanitize=address; no leaks inside the whole programm (I'm a good programmer, i know) (fsanit is compiled with clang)
-- for Microsoft Visual Studio 2022 users :
-    - create a new project (no matter the name)
-    - add all files manually (file, add file, .c(pp)) with name of files in this project
-    - then you have two choices :
-        - add your own main inside $(PROJECT_NAME).c(pp) and so remove test01.C
-        - copy test01.c into $(PROJECT_NAME).c(pp)
-    - If you know Visual Studio more than that, you can instead :
-        - get into compiler config
-        - add manually all source (.c) files into the compiler's paths
-        - don't forget to do that for both release and debug
-    - And then, you can click the compile and run button, and it should work
+## Algorithms
 
+- parsing and conversions uses simple O(n²) algorithms which are just dividing either the string or the number by a constant (2^32 for the string, 10^9 for the number) and filling a string, or a bigint's limbs accordingly
+- multiplication uses the Karatsuba algorithm, cutting numbers in half, and making 3 sub-multiplication taking 1/4 of the time to do the full operation. This process can be repeated using recursion to go up to O(n^(log(3)/log(2))) or about O(n^1.585)
 
-    
+## News
 
+- The project has been remade, again, in July of 2026, but this time without any coding style whatsoever, even though I'm trying to make clean code. Most of the project is still coding style, but there's some comments describing how things work, variables being declared not in the beggining of the function for clarity (the variable is created just before being used, so you know when and why it got created)
+- The project has changed shapes: now instead of compiling a programm that used the bigint library, you now can compile a static library (.a file) that contains all the functions. You may however still compile a test to benchmark things.
+- The project has gone very fast, using some pretty hard optimisations: memory optimisations. Basically, before, I was simply doing my recursive function, which spitted out a new number, which I then used and free. But the recursion got so far, that it was doing Millions of allocs and frees for a simple multiplication. Now, there's barely any allocation: the recursive function doesn't allocate anything, it is a wrapper that allocates the result, and a "workspace" of size O(n). Right now it is 10 * (len_a + len_b), but it will go down for further optimisation. Anyway for the multiplication of 2 numbers, there will be: 4 allocs for the number (1 for the structure, one for the number's limbs, repeat twice), 1 alloc for the result, 1 for the workspace, 3 for the conversion into a string (returned string, and a copy of the original number, so 2) which means 9 allocation, no matter the size, while before it was about 1 Million, pretty neat.
+
+> [!NOTE]
+> "pretty hard optimisations" is only because you have to trust the memory optimisations and hope it doesn't take more and more memory with recursion
+
+## Quick start
+
+The project is given with a standard Makefile. You may use it to compile
+
+### Linux and Mac users
+
+Because it's a totally normal GNU makefile, you may compile the static library using
+
+```bash
+make
+```
+
+#### Makefile rules
+
+the rule "fclean" cleans the project with the library's object (.o) files and the library file (.a)  
+the rule "clean" cleans the project with the library's object (.o) files but not the static library (.a) file  
+the rule "re" recompiles the library, cleaning the project first  
+the rule opti recompiles the library with -O3 optimisations  
+
+Reminder: you can use these rules simply by executing
+
+```bash
+make [rule]
+```
+
+#### Compiling the test
+
+A test is aviable in main.c, does simple operations and then computes a huge test. Right now the test is just a big number filled to the brim with 0xFFFFFFFF  
+to compile this test, you may run  
+
+```bash
+make test
+```
+
+and to compile the test with optimisations, you may run
+
+```bash
+make optest
+```
+
+### Windows users
+
+Windows is not really made for this kind of things, but I still shall give you solutions to compile your project.
+
+#### Method 1: make a CMake project
+
+In Visual Studio 2022, you can create a new project (or use an existing one if you have one)  
+then, you may copy the files in here into a directory in your project  
+And finally, when doing the CMakeLists.txt, just compile the files into a static library  
+
+```cmake
+ADD_LIBRARY( BigIntLib STATIC
+    [...]/bigint_conv.c
+    [...]/bigint_utils.c [...])
+
+ADD_EXECUTABLE( [NAME], [your executable])
+
+TARGET_LINK_LIBRARIES( [NAME]
+    BigIntLib)
+```
+
+#### Method 2: continue with a C++ project
+
+In Visual Studio 2022, the CMake is being made by itself and is hard to really get into, but i'll still try my best  
+The method is quite simple: just add the projects file into your project  
+To do that, you can't just copy and paste the files, you also need to add these files in the compilation process. So in the file, you can click _add existing item_ and then add the projects files you previously copied  

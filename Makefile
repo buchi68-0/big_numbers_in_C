@@ -1,37 +1,43 @@
 ##
-## EPITECH PROJECT, 2025
-## big int in C
+## PERSONNAL PROJECT, 2026
+## bigint
 ## File description:
-## compiles a basic programm
+## Compiles the lib and potentially compiles the test
 ##
 
-NAME = "test"
+SRC =	src/operations.c	\
+		src/bigint_conv.c	\
+		src/bigint_utils.c	\
 
-SRC = number_basic_operation.c	\
-	number_conversion_procedures.c	\
-	number_creation_procedures.c	\
-	number_mul_procedures.c	\
-	number_printable_procedure.c	\
-	test01.c	\
-	timespec_use.c
+CFLAGS += -I./include
 
-all : re
+NAME = libbigint.a
 
-re : fclean
-	clang -o $(NAME) $(SRC)
+TEST_NAME = test.out
+
+OBJ = $(SRC:.c=.o)
+
+all : $(OBJ)
+	ar rc $(NAME) $(OBJ)
+
+re : fclean all
+
+$(NAME) : all
 
 fclean : clean
-	rm -f test
+	rm -f $(NAME)
+	rm -f $(TEST_NAME)
 
-clean :
-	rm -f *~
-	rm -f \#*\#
+clean:
+	rm -f $(OBJ)
 
-debug : fclean
-	epiclang -g -o $(NAME) $(SRC)
+test: all
+	$(CC) $(CFLAGS) -o $(TEST_NAME) main.c -L. -lbigint
 
-fsanit : fclean
-	clang -fsanitize=address -g -o $(NAME) $(SRC)
+opti: CFLAGS += -O3
+opti: re
 
-gccver : fclean
-	gcc -o $(NAME) $(SRC)
+optest: opti test
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
