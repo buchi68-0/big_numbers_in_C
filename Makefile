@@ -39,5 +39,10 @@ opti: re
 
 optest: opti test
 
+debug: CFLAGS += -g
+debug: re
+
+testbug: debug test
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
