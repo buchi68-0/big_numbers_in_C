@@ -17,8 +17,8 @@ converting Number to base10 string
 
 - Multiplication alone of 2 Numbers from raw 200kB values takes about 0.5 seconds (that would be the Number from the parsing of a 481 thousands digits string)
 - Multiplication alone of 2 Numbers from raw 4MB values takes 61 seconds (that would be the Number from the parsing of a 9.63MB string)
-- converting a 200kB number into string takes 51 seconds
-- parsing hasn't been benchmarked yet, because the newest version is not out yet
+- converting a 200kB number into string takes 25 seconds, and you can expect 40 minutes for a 2MB number
+- parsing a 200kB string takes about 1 second (0.95 in my testing), and parsing a 2MB string takes 95 seconds
 
 > [!NOTE]
 > This test has been made on my charging, default settings laptop, with an Intel Core (ultra) 5 120U, performances may change according yo your config
