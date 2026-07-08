@@ -30,6 +30,7 @@ bigint_t *subtraction(bigint_t *n1, bigint_t *n2);
 char *convert_bigint_to_str(bigint_t const *number);
 bigint_t *multiplication(bigint_t *n1, bigint_t *n2);
 int8_t is_number_zero(bigint_t *number);
-bigint_t *advanced_multiplication(bigint_t *a, bigint_t *b);
+bigint_t *schoolbook_multiplication(bigint_t *a, bigint_t *b);
+bigint_t *convert_str_to_bigint(char const *s);
 
 #endif /* BIGINT HEADER DEFINED*/
