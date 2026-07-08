@@ -5,7 +5,7 @@ have ints that can fill up to the full RAM
 ## Features
 
 Can do basic operation, such as addition, subtraction and multiplication ; division insn't here yet, and might never be
-Can convert a big number into a string, but not the other way around yet
+Can convert a big number into a string and the other way around
 
 ## Feel free to help me by doing a pull request
 
