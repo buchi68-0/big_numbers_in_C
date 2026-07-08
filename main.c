@@ -40,6 +40,11 @@ static void huge_test(void)
         n1->limb[i] = LIMB_MASK;
         n2->limb[i] = LIMB_MASK;
     }
+    /*char a[] = "10";
+    timespec_get(&t1, TIME_UTC);
+    bigint_t *new_number = convert_str_to_bigint(a);
+    timespec_get(&t2, TIME_UTC);
+    print_time("conversion string to number", &t1, &t2);*/
     /*timespec_get(&t1, TIME_UTC);
     printf("n1: %s\nn2: %s\n", convert_bigint_to_str(n1), convert_bigint_to_str(n2));
     timespec_get(&t2, TIME_UTC);
@@ -47,13 +52,14 @@ static void huge_test(void)
     /*timespec_get(&t1, TIME_UTC);
     bigint_t *n3 = schoolbook_multiplication(n1, n2);
     timespec_get(&t2, TIME_UTC);
-    print_time("schoolbook mul", &t1, &t2); /* */
+    print_time("schoolbook mul", &t1, &t2); */
     timespec_get(&t1, TIME_UTC);
     bigint_t *n4 = multiplication(n1, n2);
     timespec_get(&t2, TIME_UTC);
     print_time("karatsuba mul", &t1, &t2);
     timespec_get(&t1, TIME_UTC);
-    printf("n3: %s\n", convert_bigint_to_str(n4));
+    convert_bigint_to_str(n4);
+    //printf("n3: %s\n", convert_bigint_to_str(n4));
     //printf("n4: %s\n", convert_bigint_to_str(n4));
     timespec_get(&t2, TIME_UTC);
     print_time("time for conversions", &t1, &t2);
@@ -82,10 +88,6 @@ int main(void)
     printf("n2-n3: %s\n", convert_bigint_to_str(subtraction(n2, n3)));
     printf("n2*n3: %s\n", convert_bigint_to_str(multiplication(n2, n3)));
     printf("n2*n1: %s\n", convert_bigint_to_str(multiplication(n2, n1)));
-
-    bigint_t *new_number = convert_str_to_bigint("125105645647856498565416454654413");
-    printf("number put in: %s\n", "125105645647856498565416454654413");
-    printf("number parsed: %s\n", convert_bigint_to_str(new_number));
 
     huge_test();
     return 0;
