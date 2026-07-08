@@ -173,7 +173,7 @@ static void add_carry(uint32_t *arr, size_t j, uint64_t carry)
     }
 }
 
-bigint_t *multiplication(bigint_t *n1, bigint_t *n2)
+bigint_t *schoolbook_multiplication(bigint_t *n1, bigint_t *n2)
 {
     bigint_t *new_number = NULL;
 
@@ -223,7 +223,6 @@ static void add_assign(uint32_t *into, uint32_t *from, size_t nfrom)
         rest += (uint64_t)into[i] + (uint64_t)from[i];
         into[i] = rest & LIMB_MASK;
         rest >>= LIMB_BITS;
-        //printf("value = %x, carry = %x\n", into[i], rest);
     }
     while (rest != 0) {
         rest += into[i];
@@ -344,13 +343,13 @@ static void karatsuba(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, siz
     add_assign(result + cut, mul_sum.limb, mul_sum.len);
 }
 
-bigint_t *advanced_multiplication(bigint_t *a, bigint_t *b)
+bigint_t *multiplication(bigint_t *a, bigint_t *b)
 {
     if (!a || !b)
         return NULL;
-    size_t n = a->len + b->len;
+    size_t n = MAX(a->len, b->len);
 
-    uint32_t *scratch = calloc(10 * n, sizeof(uint32_t));
+    uint32_t *scratch = calloc(6 * n, sizeof(uint32_t));
 
     if (!scratch) {
         return NULL;
