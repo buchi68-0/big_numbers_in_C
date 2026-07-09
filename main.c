@@ -29,14 +29,14 @@ static void print_time(char const *s, struct timespec *time1, struct timespec *t
 
 static void huge_test(void)
 {
-    bigint_t *n1 = create_number(200000, 0);
-    bigint_t *n2 = create_number(200000, 0);
+    bigint_t *n1 = create_number(1000000, 0);
+    bigint_t *n2 = create_number(1000000, 0);
     struct timespec t1 = {0};
     struct timespec t2 = {0};
 
     if (!n1 || !n2)
         return;
-    for (size_t i = 0; i < 200000; i++) {
+    for (size_t i = 0; i < 1000000; i++) {
         n1->limb[i] = LIMB_MASK;
         n2->limb[i] = LIMB_MASK;
     }
@@ -52,17 +52,16 @@ static void huge_test(void)
     /*timespec_get(&t1, TIME_UTC);
     bigint_t *n3 = schoolbook_multiplication(n1, n2);
     timespec_get(&t2, TIME_UTC);
-    print_time("schoolbook mul", &t1, &t2); */
+    print_time("schoolbook mul", &t1, &t2);*/
     timespec_get(&t1, TIME_UTC);
     bigint_t *n4 = multiplication(n1, n2);
     timespec_get(&t2, TIME_UTC);
-    print_time("karatsuba mul", &t1, &t2);
-    timespec_get(&t1, TIME_UTC);
-    convert_bigint_to_str(n4);
-    //printf("n3: %s\n", convert_bigint_to_str(n4));
-    //printf("n4: %s\n", convert_bigint_to_str(n4));
+    print_time("mul", &t1, &t2);
+    /*timespec_get(&t1, TIME_UTC);
+    printf("n3: %s\n", convert_bigint_to_str(n4));
+    printf("n4: %s\n", convert_bigint_to_str(n4));
     timespec_get(&t2, TIME_UTC);
-    print_time("time for conversions", &t1, &t2);
+    print_time("time for conversions", &t1, &t2);*/
 }
 
 int main(void)
