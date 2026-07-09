@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-// starts from the end up towards the beggining
+// starts from the end up towards the beginning
 static bigint_t *get_maximum(bigint_t *n1, bigint_t *n2)
 {
     size_t size1 = n1->len;
@@ -200,18 +200,25 @@ bigint_t *schoolbook_multiplication(bigint_t *n1, bigint_t *n2)
 
 static void multiplication_into(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, size_t nb)
 {
+    size_t j = 0;
+    uint64_t carry = 0;
+
     for (size_t i = 0; i < na; i++) {
         if (!a[i])
             continue;
-        uint64_t carry = 0;
-        for (size_t j = 0; j < nb; j++) {
+        for (j = 0; j < nb; j++) {
             uint64_t prod = (uint64_t)a[i] * (uint64_t)b[j];
-            uint64_t lo = (prod & (uint64_t)LIMB_MASK) + (uint64_t)result[i + j] + (carry & (uint64_t)LIMB_MASK);
+            uint64_t lo = (prod & LIMB_MASK) + (uint64_t)result[i + j] + carry;
 
-            result[i + j] = lo & (uint64_t)LIMB_MASK;
-            carry = (lo >> LIMB_BITS) + (prod >> LIMB_BITS) + (carry >> LIMB_BITS);
+            result[i + j] = (uint32_t)lo;
+            carry = (lo >> LIMB_BITS) + (prod >> LIMB_BITS);
         }
-        add_carry(result, i + nb, carry);
+        while (carry != 0) {
+            carry += result[i + j];
+            result[i + j] = (uint32_t)carry;
+            carry >>= LIMB_BITS;
+            j++;
+        }
     }
 }
 
@@ -220,14 +227,15 @@ static void add_assign(uint32_t *into, uint32_t *from, size_t nfrom)
     uint64_t rest = 0;
     size_t i = 0;
 
-    for (; i < nfrom; i++) {
+    while (i < nfrom) {
         rest += (uint64_t)into[i] + (uint64_t)from[i];
-        into[i] = rest & LIMB_MASK;
+        into[i] = (uint32_t)rest;
         rest >>= LIMB_BITS;
+        i++;
     }
     while (rest != 0) {
         rest += into[i];
-        into[i] = rest & LIMB_MASK;
+        into[i] = (uint32_t)rest;
         rest >>= LIMB_BITS;
         i++;
     }
@@ -270,15 +278,13 @@ static void add_into(uint32_t *into, size_t ninto, uint32_t *arr1, size_t n1, ui
 
     for (; i < n1 && i < n2; i++) {
         rest += (uint64_t)arr1[i] + (uint64_t)arr2[i];
-        into[i] = rest & LIMB_MASK;
+        into[i] = (uint32_t)rest;
         rest >>= LIMB_BITS;
-        //printf("value = %x, carry = %x\n", into[i], rest);
     }
     for (; i < n1; i++) {
         rest += (uint64_t)arr1[i];
-        into[i] = rest & LIMB_MASK;
+        into[i] = (uint32_t)rest;
         rest >>= LIMB_BITS;
-        //printf("value = %x, carry = %x\n", into[i], rest);
     }
     into[i] = rest;
     i++;
@@ -390,6 +396,17 @@ static void shift_number(uint32_t *number, size_t nnumber, int8_t nbits)
     }
 }
 
+static void unshift_number_one(uint32_t *number, size_t nnumber)
+{
+    for (size_t i = 0; i < nnumber - 1; i++) {
+        number[i] <<= 1;
+        if (number[i + 1] & 1) {
+            number[i] |= 0x8000000U;
+        }
+    }
+    number[nnumber - 1] <<= 1;
+}
+
 static void divide_number_const(uint32_t *number, size_t nnumber, uint32_t constant)
 {
     ssize_t i = nnumber - 1;
@@ -475,7 +492,7 @@ static void toom_cook(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, siz
 
     bigint_t q_m1 = {.len = p0.len, .limb = sp, .sign = 0};
     // p(-1) = p0 - a1
-    sp += q_m1.len + 4; // the +4 is a simbolic space move to be able to mulitply p_m2 and p_q2 into this space later
+    sp += q_m1.len + 4; // the +4 is a symbolic space move to be able to mulitply p_m2 and p_q2 into this space later
     if (get_maximum(&b1, &p0) == &b1) {
         q_m1.sign = 1;
         sub_into(q_m1.limb, q_m1.len, b1.limb, b1.len, p0.limb, p0.len);
@@ -590,6 +607,8 @@ static void toom_cook(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, siz
             sub_into(r1.limb, r1.len, r_1.limb, r_1.len, r_m1.limb, r_m1.len);
         }        
     }
+    // divide by 2
+    unshift_number_one(r1.limb, r1.len);
 
     bigint_t r2 = {.limb = sp, .len = r_1.len + 2, .sign = r_m1.sign};
     sp += r2.len;
@@ -623,6 +642,9 @@ static void toom_cook(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, siz
             sub_assign(r3.limb, r2.limb, r2.len);
         }
     }
+    // divide by 2
+    unshift_number_one(r3.limb, r3.len);
+    // add r4
     add_assign(r3.limb, p0.limb, r4.len * 2 + 1);
 
     // r2 = r2 + r1 - r4
@@ -676,8 +698,8 @@ bigint_t *multiplication(bigint_t *a, bigint_t *b)
         return NULL;
     }
 
-    //toom_cook(res->limb,
-    karatsuba(res->limb,
+    toom_cook(res->limb,
+    //karatsuba(res->limb,
               a->limb, a->len,
               b->limb, b->len,
               scratch);
