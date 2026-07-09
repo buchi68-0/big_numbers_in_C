@@ -29,14 +29,14 @@ static void print_time(char const *s, struct timespec *time1, struct timespec *t
 
 static void huge_test(void)
 {
-    bigint_t *n1 = create_number(1000000, 0);
-    bigint_t *n2 = create_number(1000000, 0);
+    bigint_t *n1 = create_number(10000000, 0);
+    bigint_t *n2 = create_number(10000000, 0);
     struct timespec t1 = {0};
     struct timespec t2 = {0};
 
     if (!n1 || !n2)
         return;
-    for (size_t i = 0; i < 1000000; i++) {
+    for (size_t i = 0; i < 10000000; i++) {
         n1->limb[i] = LIMB_MASK;
         n2->limb[i] = LIMB_MASK;
     }
