@@ -15,7 +15,7 @@ converting Number to base10 string
 
 ## News
 
-### New algorithm just dropped!
+### New algorithm just dropped! (July 9)
 
 Instead of the old karatsuba, I now implemented the toom-cook algorithm, achieving WAY faster times.  
 The algorithm is O(n^(log(5)/log(3))) and even though it's way more complex, it crushes karatsuba but there's some best case scenario that causes it to sometime be way faster and other be mediumly faster
@@ -52,8 +52,9 @@ The project has gone very fast, using some pretty hard optimizations: memory opt
 
 Here is a list of the multiplication performances, with optimizations
 
-- 200kB of Raw data (50k limbs): Toom Cook 0.045s (best case) 0.1s (worst case); karatsuba 0.13s
-- 4MB of Raw data (1M limbs): Toom Cook 2.00s (best case) 7.5s (worst case); karatsuba 15.05s
+- 200kB of raw data (50k limbs): Toom Cook 0.045s (best case) 0.1s (worst case); karatsuba 0.13s
+- 4MB of raw data (1M limbs): Toom Cook 2.00s (best case) 7.5s (worst case); karatsuba 15.05s
+- 40MB of raw data (10M limbs): Toom Cook 45s (best case) 224s (worst case); karatsuba 438.2s
 
 ## Algorithms
 
@@ -64,7 +65,7 @@ Current algorithms implemented
 
 - Schoolbook multiplication. Classical multiplication where you multiply each digit by one another (e.g. 12\*24 = 2\*4 + 2\*20 + 10\*4 + 10\*20). O(n²); where number of limbs <= 30
 - Karatsuba algorithm, cutting numbers in half, and making 3 sub-multiplication taking 1/4th of the time to do the full operation. This process can be repeated using recursion and is O(n^(log(3)/log(2))) or about O(n^1.585) ; where number of limbs <= 200
-- Toom-Cook algorithm, cutting number in thirds, and making 5 sub multiplication taking 1/9th of the time to do the full operation. This process can be repeated using recursion and achieves O(n^(log(5)/log(3))) or about O(n^1.464) ; where number of limbs > 200
+- Toom-Cook algorithm, cutting number in thirds, and making 5 sub multiplication taking 1/9th of the time to do the full operation. This process can be repeated using recursion and achieves O(n^(log(5)/log(3))) or about O(n^1.465) ; where number of limbs > 200
 
 ## Quick start
 
