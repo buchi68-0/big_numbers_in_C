@@ -18,42 +18,42 @@ converting Number to base10 string
 ### New algorithm just dropped!
 
 Instead of the old karatsuba, I now implemented the toom-cook algorithm, achieving WAY faster times.  
-The algorithm is O(n^(log(5)/log(3))) and even though it's way more complex, it crushes karatsuba
+The algorithm is O(n^(log(5)/log(3))) and even though it's way more complex, it crushes karatsuba but there's some best case scenario that causes it to sometime be way faster and other be mediumly faster
 you can see the performance improvements under the Efficiency tab
 
 ### Project remake (again) (July 8)
 
-The project has been remade, again, in July of 2026, but this time without any coding style whatsoever, even though I'm trying to make clean code. Most of the project is still coding style, but there's some comments describing how things work, variables being declared not in the beggining of the function for clarity (the variable is created just before being used, so you know when and why it got created)
+The project has been remade, again, in July of 2026, but this time without any coding style whatsoever, even though I'm trying to make clean code. Most of the project is still coding style, but there's some comments describing how things work, variables being declared not in the beginning of the function for clarity (the variable is created just before being used, so you know when and why it got created)
 
 ### Project is now a library instead of just files (July 8)
 
-The project has changed shapes: now instead of compiling a programm that used the bigint library, you now can compile a static library (.a file) that contains all the functions. You may however still compile a test to benchmark things.
+The project has changed shapes: now instead of compiling a program that used the bigint library, you now can compile a static library (.a file) that contains all the functions. You may however still compile a test to benchmark things.
 
 ### Project has gone faster (July 8)
 
-The project has gone very fast, using some pretty hard optimisations: memory optimisations. Basically, before, I was simply doing my recursive function, which spitted out a new number, which I then used and free. But the recursion got so far, that it was doing Millions of allocs and frees for a simple multiplication. Now, there's barely any allocation: the recursive function doesn't allocate anything, it is a wrapper that allocates the result, and a "workspace" of size O(n). The size is 8 * MAX(a_len, b_len). Anyway for the multiplication of 2 numbers, there will be: 4 allocs for the number (1 for the structure, one for the number's limbs, repeat twice), 1 alloc for the result, 1 for the workspace, 3 for the conversion into a string (returned string, and a copy of the original number, so 2) which means 9 allocation, no matter the size, while before it was about 1 Million, pretty neat.
+The project has gone very fast, using some pretty hard optimizations: memory optimizations. Basically, before, I was simply doing my recursive function, which spitted out a new number, which I then used and free. But the recursion got so far, that it was doing Millions of allocs and frees for a simple multiplication. Now, there's barely any allocation: the recursive function doesn't allocate anything, it is a wrapper that allocates the result, and a "workspace" of size O(n). The size is 8 * MAX(a_len, b_len). Anyway for the multiplication of 2 numbers, there will be: 4 allocs for the number (1 for the structure, one for the number's limbs, repeat twice), 1 alloc for the result, 1 for the workspace, 3 for the conversion into a string (returned string, and a copy of the original number, so 2) which means 9 allocation, no matter the size, while before it was about 1 Million, pretty neat.
 
 > [!NOTE]
-> "pretty hard optimisations" is only because you have to trust the memory optimisations and hope it doesn't take more and more memory with recursion
+> "pretty hard optimizations" is only because you have to trust the memory optimizations and hope it doesn't take more and more memory with recursion
 
 ## Efficiency
 
-### No optimisations
+### No optimizations
 
-- Multiplication alone of 2 Numbers from raw 200kB values takes about 0.15 seconds crushing Karatsuba's time of 0.5s (that would be the Number from the parsing of a 481 thousands digits string)
-- Multiplication alone of 2 Numbers from raw 4MB values takes 8 seconds, crushing Karatsuba's time of 61 seconds (that would be the Number from the parsing of a 9.63MB string)
+- Multiplication alone of 2 Numbers from raw 200kB values takes about 0.15 (best case) to 0.3 seconds crushing Karatsuba's time of 0.5s (that would be the Number from the parsing of a 481 thousands digits string)
+- Multiplication alone of 2 Numbers from raw 4MB values takes 8 (best case) to 25 seconds, crushing Karatsuba's time of 61 seconds (that would be the Number from the parsing of a 9.63MB string)
 - converting a 200kB number into string takes 25 seconds, and you can expect 40 minutes for a 2MB number
 - parsing a 200kB string takes about 1 second (0.95 in my testing), and parsing a 2MB string takes 95 seconds
 
 > [!NOTE]
-> This test has been made on my charging, default settings laptop, with an Intel Core (ultra) 5 120U, performances may change according yo your config
+> This test has been made on my charging, default settings laptop, with an Intel Core (ultra) 5 120U, performances may change according to your config
 
-### with optimisation
+### with optimization
 
-Here is a list of the multiplication performances, with optimisations
+Here is a list of the multiplication performances, with optimizations
 
-- 200kB of Raw data (50k limbs): Toom Cook 0.045s; karatsuba 0.13s
-- 4MB of Raw data (1M limbs): Toom Cook 2.00s; karatsuba 15.05s
+- 200kB of Raw data (50k limbs): Toom Cook 0.045s (best case) 0.1s (worst case); karatsuba 0.13s
+- 4MB of Raw data (1M limbs): Toom Cook 2.00s (best case) 7.5s (worst case); karatsuba 15.05s
 
 ## Algorithms
 
@@ -83,7 +83,7 @@ make
 the rule "fclean" cleans the project with the library's object (.o) files and the library file (.a)  
 the rule "clean" cleans the project with the library's object (.o) files but not the static library (.a) file  
 the rule "re" recompiles the library, cleaning the project first  
-the rule opti recompiles the library with -O3 optimisations  
+the rule opti recompiles the library with -O3 optimizations  
 
 Reminder: you can use these rules simply by executing
 
@@ -93,14 +93,14 @@ make [rule]
 
 #### Compiling the test
 
-A test is aviable in main.c, does simple operations and then computes a huge test. Right now the test is just a big number filled to the brim with 0xFFFFFFFF  
+A test is available in main.c, does simple operations and then computes a huge test. Right now the test is just a big number filled to the brim with 0xFFFFFFFF  
 to compile this test, you may run  
 
 ```bash
 make test
 ```
 
-and to compile the test with optimisations, you may run
+and to compile the test with optimizations, you may run
 
 ```bash
 make optest
