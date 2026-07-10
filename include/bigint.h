@@ -32,5 +32,7 @@ bigint_t *multiplication(bigint_t *n1, bigint_t *n2);
 int8_t is_number_zero(bigint_t *number);
 bigint_t *schoolbook_multiplication(bigint_t *a, bigint_t *b);
 bigint_t *convert_str_to_bigint(char const *s);
+void FFT_multiplication(uint32_t *result, uint32_t *a, size_t na, uint32_t *b, size_t nb, void *workspace);
+bigint_t *FFT_caller(bigint_t *a, bigint_t *b);
 
 #endif /* BIGINT HEADER DEFINED*/
