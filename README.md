@@ -15,6 +15,10 @@ converting Number to base10 string
 
 ## News
 
+### New algorithm just dropped! (again) (July 10)
+
+Instead of the old Toom-cook algorithm (don't worry, lost but not forgotten), I use the FFT algorithm now. Complexity: O(nlog(n)). It achieves way faster times.
+
 ### New algorithm just dropped! (July 9)
 
 Instead of the old karatsuba, I now implemented the toom-cook algorithm, achieving WAY faster times.  
@@ -40,8 +44,10 @@ The project has gone very fast, using some pretty hard optimizations: memory opt
 
 ### No optimizations
 
-- Multiplication alone of 2 Numbers from raw 200kB values takes about 0.15 (best case) to 0.3 seconds crushing Karatsuba's time of 0.5s (that would be the Number from the parsing of a 481 thousands digits string)
-- Multiplication alone of 2 Numbers from raw 4MB values takes 8 (best case) to 25 seconds, crushing Karatsuba's time of 61 seconds (that would be the Number from the parsing of a 9.63MB string)
+- Multiplication alone of 2 Numbers from raw 200kB values takes about 0.09s crushing Karatsuba's time of 0.5s and Toom-cooks's best of 0.15 (that would be the Number from the parsing of a 481 thousands digits string)
+- Multiplication alone of 2 Numbers from raw 4MB values takes 1.65s, crushing Karatsuba's time of 61 seconds and toom-cooks's best of 8s (that would be the Number from the parsing of a 9.63MB string)
+- Multiplication alone of 2 Numbers from raw 40MB values takes 31s, and this test will not be done with the other algorithms since it's so big.
+- Multiplication alone of 2 Numbers from raw 400 MB values takes 1623s, however, note that It was using 30GB of ram, and because I have only 16GB, it used mostly SWAP space, so it takes longer
 - converting a 200kB number into string takes 25 seconds, and you can expect 40 minutes for a 2MB number
 - parsing a 200kB string takes about 1 second (0.95 in my testing), and parsing a 2MB string takes 95 seconds
 
@@ -52,9 +58,10 @@ The project has gone very fast, using some pretty hard optimizations: memory opt
 
 Here is a list of the multiplication performances, with optimizations
 
-- 200kB of raw data (50k limbs): Toom Cook 0.045s (best case) 0.1s (worst case); karatsuba 0.13s
-- 4MB of raw data (1M limbs): Toom Cook 2.00s (best case) 7.5s (worst case); karatsuba 15.05s
-- 40MB of raw data (10M limbs): Toom Cook 45s (best case) 224s (worst case); karatsuba 438.2s
+- 200kB of raw data (50k limbs): FFT 0.04s; Toom Cook 0.045s (best case) 0.1s (worst case); karatsuba 0.13s
+- 4MB of raw data (1M limbs): FFT 0.75s; Toom Cook 2.00s (best case) 7.5s (worst case); karatsuba 15.05s
+- 40MB of raw data (10M limbs): FFT 15s; Toom Cook 45s (best case) 224s (worst case); karatsuba 438.2s
+- 400MB of raw data (100M limbs): FFT: 1600s, but same thing, because it used my swap for most of the memory usage, that means every access and write costed more
 
 ## Algorithms
 
@@ -65,7 +72,8 @@ Current algorithms implemented
 
 - Schoolbook multiplication. Classical multiplication where you multiply each digit by one another (e.g. 12\*24 = 2\*4 + 2\*20 + 10\*4 + 10\*20). O(n²); where number of limbs <= 30
 - Karatsuba algorithm, cutting numbers in half, and making 3 sub-multiplication taking 1/4th of the time to do the full operation. This process can be repeated using recursion and is O(n^(log(3)/log(2))) or about O(n^1.585) ; where number of limbs <= 200
-- Toom-Cook algorithm, cutting number in thirds, and making 5 sub multiplication taking 1/9th of the time to do the full operation. This process can be repeated using recursion and achieves O(n^(log(5)/log(3))) or about O(n^1.465) ; where number of limbs > 200
+- Toom-Cook algorithm, cutting number in thirds, and making 5 sub multiplication taking 1/9th of the time to do the full operation. This process can be repeated using recursion and achieves O(n^(log(5)/log(3))) or about O(n^1.465) ; where number of limbs <= 20000
+- Fast fourier transfom, being used alone (no recusion with smaller multiplications) and doesn't require barely any multiplication. It uses complex numbers and solves coefficients of a function using a circle around 1, i, -1 and -i (basically, just trust the thing)
 
 ## Quick start
 
