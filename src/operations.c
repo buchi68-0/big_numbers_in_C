@@ -683,7 +683,12 @@ bigint_t *multiplication(bigint_t *a, bigint_t *b)
 {
     if (!a || !b)
         return NULL;
+
     size_t n = MAX(a->len, b->len);
+
+    if (n > 20000) {
+        return FFT_caller(a, b);
+    }
 
     uint32_t *scratch = calloc(8 * n, sizeof(uint32_t));
 
@@ -699,7 +704,6 @@ bigint_t *multiplication(bigint_t *a, bigint_t *b)
     }
 
     toom_cook(res->limb,
-    //karatsuba(res->limb,
               a->limb, a->len,
               b->limb, b->len,
               scratch);
