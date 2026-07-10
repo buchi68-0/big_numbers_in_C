@@ -5,9 +5,10 @@
 ## Compiles the lib and potentially compiles the test
 ##
 
-SRC =	src/operations.c	\
-		src/bigint_conv.c	\
-		src/bigint_utils.c	\
+SRC =	src/operations.c				\
+		src/bigint_conv.c				\
+		src/bigint_utils.c				\
+		src/fast_fourier_transform.c	\
 
 CFLAGS += -I./include
 
@@ -15,10 +16,14 @@ NAME = libbigint.a
 
 TEST_NAME = test.out
 
+LIBS = 	-lbigint	\
+		-lm			\
+		
+
 OBJ = $(SRC:.c=.o)
 
 all : $(OBJ)
-	ar rc $(NAME) $(OBJ)
+	ar rc $(NAME) $(OBJ) -lm
 
 re : fclean all
 
@@ -32,7 +37,7 @@ clean:
 	rm -f $(OBJ)
 
 test: all
-	$(CC) $(CFLAGS) -o $(TEST_NAME) main.c -L. -lbigint
+	$(CC) $(CFLAGS) -o $(TEST_NAME) main.c -L. $(LIBS)
 
 opti: CFLAGS += -O3
 opti: re
